@@ -1,0 +1,324 @@
+:root {
+  --felt: #0f5132;
+  --frame: #4a2c17;
+  --bar: #3a2210;
+  --point-odd: #d9c3a5;
+  --point-even: #8c5a34;
+  --white: #f3ede2;
+  --black: #1c1c1c;
+  --page: #14181d;
+  --panel: #1e242b;
+  --text: #e8e6e3;
+  --muted: #9aa4af;
+  --accent: #4cc38a;
+  --danger: #e5534b;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+button {
+  font: inherit;
+  padding: 0.5rem 1rem;
+  border: 1px solid #3b444e;
+  border-radius: 6px;
+  background: #2a313a;
+  color: var(--text);
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: #343d48;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button.link {
+  border: none;
+  background: none;
+  color: var(--muted);
+  padding: 0;
+  text-decoration: underline;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.error {
+  color: var(--danger);
+}
+
+/* Setup screen */
+
+.setup {
+  max-width: 34rem;
+  margin: 4rem auto;
+  padding: 0 1.5rem;
+}
+
+.setup h1 {
+  margin-bottom: 0.25rem;
+}
+
+.setup fieldset {
+  border: 1px solid #2f3742;
+  border-radius: 8px;
+  margin: 1.25rem 0;
+  padding: 0.75rem 1rem 1rem;
+}
+
+.setup legend {
+  color: var(--muted);
+  padding: 0 0.35rem;
+}
+
+.option {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.2rem 0;
+  cursor: pointer;
+}
+
+.lengths {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+}
+
+/* Game screen */
+
+.app {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1rem 1.5rem 3rem;
+}
+
+.app header h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.4rem;
+}
+
+.scoreline {
+  display: flex;
+  gap: 1.25rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  grid-template-areas: 'board coach' 'controls coach';
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 60rem) {
+  main {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'board' 'controls' 'coach';
+  }
+}
+
+.board {
+  grid-area: board;
+  width: 100%;
+  height: auto;
+}
+
+.controls {
+  grid-area: controls;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  min-height: 3rem;
+}
+
+.controls p {
+  margin: 0;
+}
+
+.result {
+  font-weight: 600;
+}
+
+.roll-controls,
+.cube-offer,
+.dice {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.die {
+  display: inline-grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 6px;
+  background: var(--white);
+  color: #111;
+  font-weight: 700;
+}
+
+/* Board internals */
+
+.frame {
+  fill: var(--frame);
+}
+
+.felt {
+  fill: var(--felt);
+}
+
+.bar,
+.tray {
+  fill: var(--bar);
+}
+
+.point.odd {
+  fill: var(--point-odd);
+}
+
+.point.even {
+  fill: var(--point-even);
+}
+
+.point-target {
+  fill: var(--accent);
+  opacity: 0.45;
+}
+
+.checkers.white circle {
+  fill: var(--white);
+  stroke: #b9b0a0;
+  stroke-width: 2;
+}
+
+.checkers.black circle {
+  fill: var(--black);
+  stroke: #555;
+  stroke-width: 2;
+}
+
+.slabs.white rect {
+  fill: var(--white);
+}
+
+.slabs.black rect {
+  fill: #4a4a4a;
+}
+
+.stack-count {
+  fill: #d02b2b;
+  font-size: 26px;
+  font-weight: 700;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 4;
+}
+
+.slot-label {
+  fill: #cfc6b8;
+  font-size: 15px;
+  text-anchor: middle;
+}
+
+.hit-area {
+  fill: transparent;
+  cursor: default;
+}
+
+.hit-area.source {
+  cursor: pointer;
+}
+
+.hit-area.selected {
+  fill: #ffffff;
+  fill-opacity: 0.12;
+}
+
+.hit-area.target {
+  fill: var(--accent);
+  fill-opacity: 0.3;
+  cursor: pointer;
+}
+
+/* Coach */
+
+.coach {
+  grid-area: coach;
+  background: var(--panel);
+  border: 1px solid #2f3742;
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.coach h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.analysis {
+  border-left: 3px solid var(--muted);
+  padding-left: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.analysis.fine {
+  border-color: var(--accent);
+}
+
+.analysis.inaccuracy {
+  border-color: #d9a441;
+}
+
+.analysis.error {
+  border-color: #e08b3c;
+}
+
+.analysis.blunder {
+  border-color: var(--danger);
+}
+
+.analysis-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.analysis p {
+  margin: 0.4rem 0;
+}
+
+.explanation {
+  color: var(--muted);
+}
+
+.hints ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+}

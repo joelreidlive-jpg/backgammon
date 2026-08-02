@@ -1,0 +1,39 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "backgammon",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-01-01",
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  // A 2-ply search needs far more than the 10 ms of CPU the free plan allows,
+  // so the Workers Paid plan is a functional requirement, not a scaling one.
+  "limits": {
+    "cpu_ms": 60000
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MATCH",
+        "class_name": "MatchDO"
+      }
+    ]
+  },
+  // SQLite-backed from the start: switching storage backend later requires a
+  // painful migration.
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["MatchDO"]
+    }
+  ]
+  // Cross-match history and stats live in D1. Create it with
+  //   wrangler d1 create backgammon
+  // and uncomment, filling in the returned database_id.
+  //
+  // "d1_databases": [
+  //   { "binding": "DB", "database_name": "backgammon", "database_id": "..." }
+  // ]
+}
