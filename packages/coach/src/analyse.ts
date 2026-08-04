@@ -10,6 +10,7 @@ import {
 import { type RankedTurn, type SearchOptions, rankTurns } from '@bg/ai';
 import { type Severity, classifyEquityLoss } from './classify.js';
 import { type GamePhase, phaseOf } from './phase.js';
+import type { Concept } from './concepts.js';
 import { explainDifference } from './explain.js';
 
 export interface TurnAnalysis {
@@ -23,6 +24,10 @@ export interface TurnAnalysis {
   readonly severity: Severity;
   readonly phase: GamePhase;
   readonly explanation: string;
+  /** Concepts the best play achieved and this one did not. */
+  readonly missed: readonly Concept[];
+  /** Downsides this play incurred that the best play avoided. */
+  readonly incurred: readonly Concept[];
 }
 
 /** Analysis depth for review. Deeper than live play, because it is off the hot path. */
@@ -56,6 +61,8 @@ export function analyseTurn(
   const played = findRanked(ranked, playedTurn.board) ?? { turn: playedTurn, equity: best.equity };
   const equityLoss = Math.max(0, best.equity - played.equity);
 
+  const difference = explainDifference(before, playedTurn.board, best.turn.board, player);
+
   return {
     player,
     dice,
@@ -66,6 +73,8 @@ export function analyseTurn(
     equityLoss,
     severity: classifyEquityLoss(equityLoss),
     phase: phaseOf(before, player),
-    explanation: explainDifference(before, playedTurn.board, best.turn.board, player).text,
+    explanation: difference.text,
+    missed: difference.gains,
+    incurred: difference.costs,
   };
 }

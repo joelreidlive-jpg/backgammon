@@ -1,6 +1,16 @@
 import type { Dice, MatchState, Move, Player } from '@bg/rules';
 import type { Difficulty } from '@bg/ai';
-import type { Hint, HintLevel, Severity, TurnAnalysis } from '@bg/coach';
+import type {
+  CoachingPolicy,
+  CubeAnalysis,
+  GameReview,
+  Hint,
+  HintLevel,
+  PlayerProgress,
+  Severity,
+  SkillTier,
+  TurnAnalysis,
+} from '@bg/coach';
 
 /**
  * Wire types shared by the Worker and the browser.
@@ -9,7 +19,18 @@ import type { Hint, HintLevel, Severity, TurnAnalysis } from '@bg/coach';
  * erases them, so the client bundle never contains the evaluator — which it
  * must not, since a player could then read the engine's own analysis.
  */
-export type { Difficulty, Hint, HintLevel, Severity, TurnAnalysis };
+export type {
+  CoachingPolicy,
+  CubeAnalysis,
+  Difficulty,
+  GameReview,
+  Hint,
+  HintLevel,
+  PlayerProgress,
+  Severity,
+  SkillTier,
+  TurnAnalysis,
+};
 
 export interface CreateMatchRequest {
   readonly aiLevel?: Difficulty;
@@ -32,6 +53,12 @@ export interface MatchView {
   readonly lastAnalysis: TurnAnalysis | null;
   /** Plays the AI made since the human's last action, newest last. */
   readonly aiPlays: readonly string[];
+  /** Set when the human's last action was a cube decision and coaching is on. */
+  readonly lastCubeAnalysis: CubeAnalysis | null;
+  /** How the coach is currently calibrated for this player. */
+  readonly policy: CoachingPolicy;
+  /** Present once a game in the match has finished. */
+  readonly review: GameReview | null;
 }
 
 export interface CreateMatchResponse {
@@ -52,3 +79,24 @@ export interface HintRequest {
 }
 
 export type CubeCommand = 'double' | 'take' | 'drop';
+
+export interface GameSummary {
+  readonly matchId: string;
+  readonly finishedAt: number;
+  readonly aiLevel: Difficulty;
+  readonly won: boolean;
+  readonly points: number;
+  readonly decisions: number;
+  readonly errorRate: number;
+}
+
+export interface ProgressResponse {
+  readonly progress: PlayerProgress;
+  readonly tier: SkillTier;
+  readonly errorRate: number;
+  readonly trend: 'improving' | 'steady' | 'slipping';
+  readonly policy: CoachingPolicy;
+  readonly weakestPhase: string | null;
+  readonly focus: readonly string[];
+  readonly recentGames: readonly GameSummary[];
+}

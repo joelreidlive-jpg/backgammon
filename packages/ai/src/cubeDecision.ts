@@ -8,11 +8,20 @@ export type CubeResponse = 'take' | 'drop';
  * textbook cubeless take point is 25%; owning the cube afterwards is worth a
  * couple of points of equity, hence the slightly lower figure.
  */
-const TAKE_POINT = 0.23;
+export const TAKE_POINT = 0.23;
 /** Below this it is not yet worth turning the cube. */
-const DOUBLE_POINT = 0.68;
+export const DOUBLE_POINT = 0.68;
 /** Above this, playing on for a gammon usually beats cashing. */
-const TOO_GOOD_POINT = 0.88;
+export const TOO_GOOD_POINT = 0.88;
+
+/**
+ * Inverse of `winProbability`. Cube thresholds are stated as win probabilities
+ * but have to be compared against equities, which is the only place the two
+ * scales need to meet.
+ */
+export function equityAtWinProbability(p: number): number {
+  return 2 * p - 1;
+}
 
 export interface CubeDecision {
   readonly action: CubeAction;

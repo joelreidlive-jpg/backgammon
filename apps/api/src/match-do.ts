@@ -16,8 +16,25 @@ import {
   roll,
 } from '@bg/rules';
 import { type Difficulty, decideCubeAction, decideCubeResponse, decideTurn } from '@bg/ai';
-import { type HintLevel, type TurnAnalysis, analyseTurn, buildHint } from '@bg/coach';
+import {
+  type CoachingPolicy,
+  type CubeAnalysis,
+  type GameReview,
+  type HintLevel,
+  type PlayerProgress,
+  type TurnAnalysis,
+  EMPTY_PROGRESS,
+  analyseCubeDecision,
+  analyseCubeResponse,
+  analyseTurn,
+  buildHint,
+  coachingPolicy,
+  isCubeDecisionPoint,
+  phaseOf,
+  reviewGame,
+} from '@bg/coach';
 import type { CreateMatchRequest, CubeCommand, HistoryEntry, MatchView } from '@bg/protocol';
+import { loadProgress, recordGame } from './players.js';
 
 export class MatchError extends Error {
   constructor(
@@ -34,12 +51,15 @@ interface MatchMeta {
   readonly seat: Player;
   readonly aiLevel: Difficulty;
   readonly coaching: boolean;
+  /** Identifies the player across matches, so progress accumulates. */
   readonly playerToken: string;
+  readonly playerKey: string;
   readonly createdAt: number;
 }
 
 interface MoveRow extends Record<string, SqlStorageValue> {
   seq: number;
+  game: number;
   player: string;
   dice: string;
   notation: string;
@@ -47,6 +67,12 @@ interface MoveRow extends Record<string, SqlStorageValue> {
   state_after: string;
   analysis: string | null;
   ts: number;
+}
+
+interface CubeRow extends Record<string, SqlStorageValue> {
+  seq: number;
+  game: number;
+  analysis: string;
 }
 
 /**
@@ -93,6 +119,7 @@ export class MatchDO extends DurableObject<Env> {
       this.sql.exec(`
         CREATE TABLE IF NOT EXISTS moves (
           seq INTEGER PRIMARY KEY,
+          game INTEGER NOT NULL,
           player TEXT NOT NULL,
           dice TEXT NOT NULL,
           notation TEXT NOT NULL,
@@ -102,10 +129,23 @@ export class MatchDO extends DurableObject<Env> {
           ts INTEGER NOT NULL
         )
       `);
+      // Cube decisions are graded separately from checker play: there are far
+      // fewer of them and they are worth far more equity each.
+      this.sql.exec(`
+        CREATE TABLE IF NOT EXISTS cube_decisions (
+          seq INTEGER PRIMARY KEY,
+          game INTEGER NOT NULL,
+          analysis TEXT NOT NULL
+        )
+      `);
     });
   }
 
-  async create(matchId: string, request: CreateMatchRequest): Promise<{ playerToken: string; view: MatchView }> {
+  async create(
+    matchId: string,
+    request: CreateMatchRequest,
+    player: { token: string; key: string },
+  ): Promise<{ playerToken: string; view: MatchView }> {
     if (await this.ctx.storage.get<MatchMeta>('meta')) {
       throw new MatchError('match already exists', 409);
     }
@@ -117,9 +157,13 @@ export class MatchDO extends DurableObject<Env> {
       seat,
       aiLevel: request.aiLevel ?? 'intermediate',
       coaching: request.coaching ?? true,
-      playerToken: crypto.randomUUID(),
+      playerToken: player.token,
+      playerKey: player.key,
       createdAt: Date.now(),
     };
+
+    // Cached so coaching can be calibrated without a D1 round trip per turn.
+    await this.ctx.storage.put('progress', await loadProgress(this.env.DB, player.key));
 
     const opening = openingRoll();
     // The higher die wins the opening roll; white owns the first die by convention.
@@ -144,9 +188,19 @@ export class MatchDO extends DurableObject<Env> {
     this.requireHumanTurn(state, meta);
     if (state.phase !== 'roll') throw new MatchError(`cannot roll during "${state.phase}"`, 409);
 
+    // Choosing to roll on is a cube decision too, and the commonest cube error
+    // in practice is the double that never gets made.
+    const declined =
+      meta.coaching && canDouble(state, meta.seat)
+        ? analyseCubeDecision(state.board, meta.seat, 'no-double')
+        : null;
+    // Correct no-doubles count too, so the cube error rate has a denominator of
+    // real decisions rather than only the ones that went wrong.
+    if (declined && isCubeDecisionPoint(declined)) this.recordCube(state.gameNumber, declined);
+
     state = roll(state, rollDice());
     await this.putState(state);
-    return this.view(state, meta);
+    return this.view(state, meta, { cubeAnalysis: declined });
   }
 
   async submitTurn(token: string, moves: readonly Move[]): Promise<MatchView> {
@@ -171,28 +225,36 @@ export class MatchDO extends DurableObject<Env> {
     this.record(before, state, meta.seat, before.dice, formatTurn(meta.seat, moves), analysis);
     state = this.advanceAI(state, meta);
     await this.putState(state);
-    return this.view(state, meta, analysis);
+    const review = await this.finishGameIfOver(state, meta);
+    return this.view(state, meta, { analysis, review });
   }
 
   async cube(token: string, command: CubeCommand): Promise<MatchView> {
     const meta = await this.requireMeta(token);
     let state = await this.requireState();
 
+    let cubeAnalysis: CubeAnalysis | null = null;
+
     if (command === 'double') {
       this.requireHumanTurn(state, meta);
       if (!canDouble(state, meta.seat)) throw new MatchError('double not available', 409);
+      cubeAnalysis = meta.coaching ? analyseCubeDecision(state.board, meta.seat, 'double') : null;
       state = offerDouble(state, meta.seat);
       const response = decideCubeResponse(state);
       state = respondToDouble(state, response);
     } else {
       if (state.phase !== 'respond-to-double') throw new MatchError('no double to respond to', 409);
       if (state.pendingDouble === meta.seat) throw new MatchError('you offered this double', 409);
+      cubeAnalysis = meta.coaching ? analyseCubeResponse(state.board, meta.seat, command) : null;
       state = respondToDouble(state, command);
     }
 
+    if (cubeAnalysis) this.recordCube(state.gameNumber, cubeAnalysis);
+
     state = this.advanceAI(state, meta);
     await this.putState(state);
-    return this.view(state, meta);
+    const review = await this.finishGameIfOver(state, meta);
+    return this.view(state, meta, { cubeAnalysis, review });
   }
 
   async nextGame(token: string): Promise<MatchView> {
@@ -205,6 +267,12 @@ export class MatchDO extends DurableObject<Env> {
     state = this.advanceAI(state, meta);
     await this.putState(state);
     return this.view(state, meta);
+  }
+
+  /** The review of the most recently finished game, if there is one. */
+  async review(token: string): Promise<GameReview | null> {
+    await this.requireMeta(token);
+    return (await this.ctx.storage.get<GameReview>('review')) ?? null;
   }
 
   async hint(token: string, level: HintLevel): Promise<unknown> {
@@ -296,8 +364,9 @@ export class MatchDO extends DurableObject<Env> {
   ): void {
     const next = this.sql.exec<{ seq: number }>('SELECT COALESCE(MAX(seq), 0) + 1 AS seq FROM moves').one().seq;
     this.sql.exec(
-      'INSERT INTO moves (seq, player, dice, notation, state_before, state_after, analysis, ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO moves (seq, game, player, dice, notation, state_before, state_after, analysis, ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       next,
+      before.gameNumber,
       player,
       JSON.stringify(dice),
       notation,
@@ -308,7 +377,74 @@ export class MatchDO extends DurableObject<Env> {
     );
   }
 
-  private async view(state: MatchState, meta: MatchMeta, lastAnalysis: TurnAnalysis | null = null): Promise<MatchView> {
+  private recordCube(game: number, analysis: CubeAnalysis): void {
+    const next = this.sql
+      .exec<{ seq: number }>('SELECT COALESCE(MAX(seq), 0) + 1 AS seq FROM cube_decisions')
+      .one().seq;
+    this.sql.exec(
+      'INSERT INTO cube_decisions (seq, game, analysis) VALUES (?, ?, ?)',
+      next,
+      game,
+      JSON.stringify(analysis),
+    );
+  }
+
+  /**
+   * Build the strategy debrief for a finished game and fold it into the
+   * player's permanent record.
+   *
+   * Idempotent on game number, because the same terminal state can be observed
+   * by more than one request.
+   */
+  private async finishGameIfOver(state: MatchState, meta: MatchMeta): Promise<GameReview | null> {
+    if (state.phase !== 'game-over' && state.phase !== 'match-over') return null;
+    if (state.result === null) return null;
+    if ((await this.ctx.storage.get<number>('reviewedGame')) === state.gameNumber) {
+      return (await this.ctx.storage.get<GameReview>('review')) ?? null;
+    }
+
+    const turns = this.sql
+      .exec<Pick<MoveRow, 'analysis'>>(
+        'SELECT analysis FROM moves WHERE game = ? AND player = ? AND analysis IS NOT NULL',
+        state.gameNumber,
+        meta.seat,
+      )
+      .toArray()
+      .map((row) => JSON.parse(row.analysis as string) as TurnAnalysis);
+
+    const cubes = this.sql
+      .exec<Pick<CubeRow, 'analysis'>>('SELECT analysis FROM cube_decisions WHERE game = ?', state.gameNumber)
+      .toArray()
+      .map((row) => JSON.parse(row.analysis) as CubeAnalysis);
+
+    // Reloaded rather than taken from the cache: another match may have
+    // finished a game since this one started.
+    const history = await loadProgress(this.env.DB, meta.playerKey);
+    const review = reviewGame(turns, cubes, history);
+
+    const progress = await recordGame(this.env.DB, meta.playerKey, {
+      matchId: meta.matchId,
+      aiLevel: meta.aiLevel,
+      won: state.result.winner === meta.seat,
+      points: state.result.points,
+      review,
+    });
+
+    await this.ctx.storage.put('progress', progress);
+    await this.ctx.storage.put('review', review);
+    await this.ctx.storage.put('reviewedGame', state.gameNumber);
+    return review;
+  }
+
+  private async view(
+    state: MatchState,
+    meta: MatchMeta,
+    last: {
+      analysis?: TurnAnalysis | null;
+      cubeAnalysis?: CubeAnalysis | null;
+      review?: GameReview | null;
+    } = {},
+  ): Promise<MatchView> {
     const yours = state.turn === meta.seat;
     const rows = this.sql
       .exec<Pick<MoveRow, 'player' | 'notation'>>('SELECT player, notation FROM moves ORDER BY seq DESC LIMIT 8')
@@ -320,6 +456,8 @@ export class MatchDO extends DurableObject<Env> {
       aiPlays.unshift(row.notation);
     }
 
+    const policy = await this.policyFor(state, meta);
+
     return {
       matchId: meta.matchId,
       seat: meta.seat,
@@ -328,10 +466,18 @@ export class MatchDO extends DurableObject<Env> {
       state,
       legalTurns: yours ? currentLegalTurns(state).map((turn) => turn.moves) : [],
       canDouble: yours && canDouble(state, meta.seat),
-      canTakeback: meta.coaching && rows.some((row) => row.player === meta.seat),
-      lastAnalysis,
+      canTakeback: meta.coaching && policy.offerTakeback && rows.some((row) => row.player === meta.seat),
+      lastAnalysis: last.analysis ?? null,
+      lastCubeAnalysis: last.cubeAnalysis ?? null,
+      policy,
+      review: last.review ?? null,
       aiPlays,
     };
+  }
+
+  private async policyFor(state: MatchState, meta: MatchMeta): Promise<CoachingPolicy> {
+    const progress = (await this.ctx.storage.get<PlayerProgress>('progress')) ?? EMPTY_PROGRESS;
+    return coachingPolicy(progress, phaseOf(state.board, meta.seat));
   }
 
   private async requireMeta(token: string): Promise<MatchMeta> {

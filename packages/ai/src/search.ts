@@ -90,6 +90,27 @@ export function rankTurns(
   return [...searched, ...rest.map((r) => ({ turn: r.turn, equity: Math.min(r.equity, floor) }))];
 }
 
+/**
+ * Expected equity for `player` who is about to roll, averaged over their 21
+ * rolls. Cube decisions are taken before the dice are known, so a static
+ * evaluation of the current position systematically misprices them.
+ */
+export function expectedEquity(
+  board: Board,
+  player: Player,
+  options: SearchOptions = { plies: 1 },
+): number {
+  const evaluate = options.evaluator ?? heuristicEvaluator;
+  if (winnerOf(board) !== null) return evaluate(board, player);
+
+  let expected = 0;
+  for (const { dice, weight } of ROLLS) {
+    const best = rankTurns(board, player, dice, options)[0];
+    expected += weight * (best ? best.equity : evaluate(board, player));
+  }
+  return expected;
+}
+
 export function bestTurn(board: Board, player: Player, dice: Dice, options?: SearchOptions): RankedTurn | null {
   const ranked = rankTurns(board, player, dice, options);
   return ranked[0] ?? null;

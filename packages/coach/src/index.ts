@@ -5,3 +5,7 @@ export * from './phase.js';
 export * from './analyse.js';
 export * from './hints.js';
 export * from './performance.js';
+export * from './cube.js';
+export * from './strategy.js';
+export * from './progress.js';
+export * from './review.js';

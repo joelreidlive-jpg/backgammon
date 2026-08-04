@@ -1,11 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { TurnBuilder } from '@bg/rules';
 import { destinationsFrom, extendTurn, startTurn, undoLastMove } from '@bg/rules';
-import type { Difficulty, HintLevel, MatchView } from '@bg/protocol';
+import type { Difficulty, GameReview, HintLevel, MatchView, ProgressResponse } from '@bg/protocol';
 import { Board } from './Board.js';
 import { CoachPanel } from './CoachPanel.js';
 import { NewMatchForm } from './NewMatchForm.js';
-import { api, clearSession, loadSession, saveSession, type Session } from './api.js';
+import { ReviewPanel } from './ReviewPanel.js';
+import {
+  api,
+  clearSession,
+  loadPlayerToken,
+  loadSession,
+  saveSession,
+  type Session,
+} from './api.js';
 
 const LEVEL_NAMES: Readonly<Record<Difficulty, string>> = {
   beginner: 'Beginner',
@@ -22,11 +30,14 @@ export function App() {
   const [selected, setSelected] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<ProgressResponse | null>(null);
+  const [review, setReview] = useState<GameReview | null>(null);
 
   const adopt = useCallback((next: MatchView) => {
     setView(next);
     setSelected(null);
     setError(null);
+    if (next.review) setReview(next.review);
     setBuilder(
       next.state.phase === 'move' && next.state.turn === next.seat && next.state.dice !== null
         ? startTurn(next.state.board, next.seat, next.state.dice)
@@ -47,6 +58,18 @@ export function App() {
     },
     [adopt],
   );
+
+  // Fetched on the setup screen, where it is both the record and the reason the
+  // coach behaves differently for a stronger player.
+  useEffect(() => {
+    if (session && view) return;
+    const token = loadPlayerToken();
+    if (!token) return;
+    void api
+      .progress(token)
+      .then(setProgress)
+      .catch(() => setProgress(null));
+  }, [session, view]);
 
   useEffect(() => {
     if (!session || view) return;
@@ -85,6 +108,7 @@ export function App() {
     return (
       <NewMatchForm
         busy={busy}
+        progress={progress}
         onStart={async (request) => {
           setBusy(true);
           try {
@@ -92,6 +116,7 @@ export function App() {
             const next = { matchId: match.matchId, playerToken };
             saveSession(next);
             setSession(next);
+            setReview(null);
             adopt(match);
           } catch (cause) {
             setError(cause instanceof Error ? cause.message : 'could not start a match');
@@ -141,6 +166,7 @@ export function App() {
               clearSession();
               setSession(null);
               setView(null);
+              setReview(null);
             }}
           >
             New match
@@ -244,10 +270,16 @@ export function App() {
           canAsk={yourTurn && state.phase === 'move' && !busy}
           canTakeback={view.canTakeback}
           analysis={view.lastAnalysis}
+          cubeAnalysis={view.lastCubeAnalysis}
+          policy={view.policy}
           onHint={(level: HintLevel) => api.hint(session, level)}
           onTakeback={() => void run(() => api.takeback(session))}
         />
       </main>
+
+      {review && (state.phase === 'game-over' || state.phase === 'match-over') && (
+        <ReviewPanel review={review} />
+      )}
     </div>
   );
 }

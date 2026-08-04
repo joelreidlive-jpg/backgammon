@@ -5,6 +5,7 @@ declare global {
   interface Env {
     MATCH: DurableObjectNamespace<MatchDO>;
     ASSETS: Fetcher;
+    DB: D1Database;
   }
 }
 

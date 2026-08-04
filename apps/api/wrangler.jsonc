@@ -28,12 +28,17 @@
       "tag": "v1",
       "new_sqlite_classes": ["MatchDO"]
     }
-  ]
-  // Cross-match history and stats live in D1. Create it with
+  ],
+  // A player's progress outlives any one match, so it cannot live in a match
+  // Durable Object. Create the database with
   //   wrangler d1 create backgammon
-  // and uncomment, filling in the returned database_id.
-  //
-  // "d1_databases": [
-  //   { "binding": "DB", "database_name": "backgammon", "database_id": "..." }
-  // ]
+  // and paste the returned id here; local `wrangler dev` needs no id.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "backgammon",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ]
 }

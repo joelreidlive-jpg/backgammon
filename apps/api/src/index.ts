@@ -1,9 +1,20 @@
 import { Hono } from 'hono';
 import type { Move } from '@bg/rules';
-import type { HintLevel } from '@bg/coach';
+import {
+  CONCEPT_ADVICE,
+  PHASE_GUIDANCE,
+  type HintLevel,
+  coachingPolicy,
+  errorRate,
+  tierFor,
+  trend,
+  weakestConcepts,
+  weakestPhase,
+} from '@bg/coach';
 import { MatchError } from './match-do.js';
 import type { MatchDO } from './match-do.js';
-import type { CreateMatchRequest, CubeCommand } from '@bg/protocol';
+import type { CreateMatchRequest, CubeCommand, ProgressResponse } from '@bg/protocol';
+import { loadProgress, newPlayerToken, playerKey, recentGames } from './players.js';
 
 export { MatchDO } from './match-do.js';
 
@@ -31,9 +42,39 @@ app.onError((error, c) => {
 
 app.post('/api/matches', async (c) => {
   const body = await c.req.json<CreateMatchRequest>().catch(() => ({}) as CreateMatchRequest);
+  // A returning player sends the token they already hold, which is what makes
+  // progress accumulate across matches rather than resetting each time.
+  const playerToken = c.req.header('x-player-token') ?? newPlayerToken();
   const matchId = crypto.randomUUID();
-  const { playerToken, view } = await stub(c.env, matchId).create(matchId, body);
+  const { view } = await stub(c.env, matchId).create(matchId, body, {
+    token: playerToken,
+    key: await playerKey(playerToken),
+  });
   return c.json({ playerToken, match: view }, 201);
+});
+
+app.get('/api/me/progress', async (c) => {
+  const key = await playerKey(token(c.req.header('x-player-token')));
+  const progress = await loadProgress(c.env.DB, key);
+  const phase = weakestPhase(progress);
+
+  const response: ProgressResponse = {
+    progress,
+    tier: tierFor(progress.checker),
+    errorRate: errorRate({
+      decisions: progress.checker.decisions + progress.cube.decisions,
+      equityLoss: progress.checker.equityLoss + progress.cube.equityLoss,
+    }),
+    trend: trend(progress),
+    policy: coachingPolicy(progress),
+    weakestPhase: phase,
+    focus: [
+      ...(phase ? [PHASE_GUIDANCE[phase]] : []),
+      ...weakestConcepts(progress, 2).map((concept) => CONCEPT_ADVICE[concept]),
+    ],
+    recentGames: await recentGames(c.env.DB, key),
+  };
+  return c.json(response);
 });
 
 app.get('/api/matches/:id', async (c) => {
@@ -78,6 +119,11 @@ app.get('/api/matches/:id/hint', async (c) => {
     level as HintLevel,
   );
   return c.json(hint);
+});
+
+app.get('/api/matches/:id/review', async (c) => {
+  const review = await stub(c.env, c.req.param('id')).review(token(c.req.header('x-player-token')));
+  return c.json(review);
 });
 
 app.get('/api/matches/:id/history', async (c) => {

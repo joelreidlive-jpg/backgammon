@@ -322,3 +322,95 @@ main {
   margin: 0.5rem 0 0;
   padding-left: 1.1rem;
 }
+
+.coach-head,
+.review header,
+.progress header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.coach-head h2,
+.review header h2,
+.progress header h2 {
+  margin: 0;
+  flex: 1;
+}
+
+.tier {
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.levelled {
+  color: var(--accent);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.review,
+.progress {
+  grid-column: 1 / -1;
+  margin-top: 1.5rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid #2b3a45;
+  border-radius: 8px;
+}
+
+.review h3,
+.progress h3 {
+  margin: 1.2rem 0 0.4rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.headline {
+  font-size: 1.05rem;
+  margin: 0.5rem 0;
+}
+
+.review ul,
+.progress ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.review li,
+.progress li {
+  margin-bottom: 0.45rem;
+}
+
+.phases li {
+  list-style: none;
+  margin-left: -1.1rem;
+}
+
+.phase-head {
+  display: flex;
+  justify-content: space-between;
+}
+
+.phases p {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+}
+
+.severity.blunder {
+  color: var(--danger);
+}
+
+.severity.error {
+  color: #e08b3c;
+}
+
+.severity.inaccuracy {
+  color: #d9a441;
+}

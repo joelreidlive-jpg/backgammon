@@ -5,8 +5,10 @@ import type {
   CubeCommand,
   Hint,
   HintLevel,
+  GameReview,
   HistoryEntry,
   MatchView,
+  ProgressResponse,
 } from '@bg/protocol';
 
 const TOKEN_KEY = 'bg.playerToken';
@@ -17,20 +19,33 @@ export interface Session {
   readonly playerToken: string;
 }
 
+/**
+ * The player token outlives any single match — it is the identity the server
+ * accumulates progress against, so finishing or abandoning a match must not
+ * clear it.
+ */
+export function loadPlayerToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function savePlayerToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
 export function loadSession(): Session | null {
   const matchId = localStorage.getItem(MATCH_KEY);
-  const playerToken = localStorage.getItem(TOKEN_KEY);
+  const playerToken = loadPlayerToken();
   return matchId && playerToken ? { matchId, playerToken } : null;
 }
 
 export function saveSession(session: Session): void {
   localStorage.setItem(MATCH_KEY, session.matchId);
-  localStorage.setItem(TOKEN_KEY, session.playerToken);
+  savePlayerToken(session.playerToken);
 }
 
+/** Forgets the current match but keeps the player. */
 export function clearSession(): void {
   localStorage.removeItem(MATCH_KEY);
-  localStorage.removeItem(TOKEN_KEY);
 }
 
 export class ApiError extends Error {}
@@ -61,7 +76,16 @@ async function request<T>(path: string, init: RequestInit & { token?: string } =
  */
 export const api = {
   createMatch: (body: CreateMatchRequest) =>
-    request<CreateMatchResponse>('/api/matches', { method: 'POST', body: JSON.stringify(body) }),
+    request<CreateMatchResponse>('/api/matches', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      token: loadPlayerToken() ?? undefined,
+    }),
+
+  progress: (playerToken: string) => request<ProgressResponse>('/api/me/progress', { token: playerToken }),
+
+  review: ({ matchId, playerToken }: Session) =>
+    request<GameReview | null>(`/api/matches/${matchId}/review`, { token: playerToken }),
 
   getMatch: ({ matchId, playerToken }: Session) =>
     request<MatchView>(`/api/matches/${matchId}`, { token: playerToken }),
