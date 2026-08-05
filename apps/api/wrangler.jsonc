@@ -1,0 +1,44 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "backgammon",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-01-01",
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  // A 2-ply search needs far more than the 10 ms of CPU the free plan allows,
+  // so the Workers Paid plan is a functional requirement, not a scaling one.
+  "limits": {
+    "cpu_ms": 60000
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MATCH",
+        "class_name": "MatchDO"
+      }
+    ]
+  },
+  // SQLite-backed from the start: switching storage backend later requires a
+  // painful migration.
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["MatchDO"]
+    }
+  ],
+  // A player's progress outlives any one match, so it cannot live in a match
+  // Durable Object. Create the database with
+  //   wrangler d1 create backgammon
+  // and paste the returned id here; local `wrangler dev` needs no id.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "backgammon",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

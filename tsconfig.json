@@ -1,0 +1,17 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "packages/rules"
+    },
+    {
+      "path": "packages/ai"
+    },
+    {
+      "path": "packages/coach"
+    },
+    {
+      "path": "packages/protocol"
+    }
+  ]
+}
