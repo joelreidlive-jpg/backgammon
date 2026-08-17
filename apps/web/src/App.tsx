@@ -174,6 +174,8 @@ export function App() {
         </div>
       </header>
 
+      <p className="rotate-hint">Turn your phone sideways — the board needs the width.</p>
+
       <main>
         <Board
           board={builder?.board ?? state.board}
