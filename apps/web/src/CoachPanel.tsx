@@ -15,6 +15,13 @@ const CUBE_LABELS: Readonly<Record<CubeAnalysis['choice'], string>> = {
   drop: 'dropped',
 };
 
+const CUBE_ACTIONS: Readonly<Record<CubeAnalysis['choice'], string>> = {
+  'no-double': 'roll on',
+  double: 'double',
+  take: 'take',
+  drop: 'drop',
+};
+
 export interface CoachPanelProps {
   enabled: boolean;
   canAsk: boolean;
@@ -82,7 +89,7 @@ export function CoachPanel({
           <p>
             You {CUBE_LABELS[cubeAnalysis.choice]} with the engine rating you around{' '}
             {Math.round(cubeAnalysis.winProbability * 100)}% — the cube action was to{' '}
-            <strong>{CUBE_LABELS[cubeAnalysis.best]}</strong>.
+            <strong>{CUBE_ACTIONS[cubeAnalysis.best]}</strong>.
           </p>
           <p className="explanation">{cubeAnalysis.explanation}</p>
         </div>
