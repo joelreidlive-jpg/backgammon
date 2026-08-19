@@ -92,6 +92,18 @@ importers:
         specifier: workspace:*
         version: link:../rules
 
+  packages/bench:
+    dependencies:
+      '@bg/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@bg/coach':
+        specifier: workspace:*
+        version: link:../coach
+      '@bg/rules':
+        specifier: workspace:*
+        version: link:../rules
+
   packages/coach:
     dependencies:
       '@bg/ai':
