@@ -82,6 +82,19 @@ export function App() {
       });
   }, [session, view, adopt]);
 
+  // A reload lands on the finished game with no review in hand, so fetch the
+  // one the server stored when the game ended.
+  useEffect(() => {
+    if (!session || !view || review) return;
+    if (view.state.phase !== 'game-over' && view.state.phase !== 'match-over') return;
+    void api
+      .review(session)
+      .then((stored) => {
+        if (stored) setReview(stored);
+      })
+      .catch(() => undefined);
+  }, [session, view, review]);
+
   // A completed turn is submitted immediately: partial turns are already
   // validated against full legal turns, so there is nothing left to confirm.
   // A turn with no moves is the forced pass, which the player confirms.

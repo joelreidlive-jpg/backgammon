@@ -20,7 +20,10 @@ export interface NewMatchFormProps {
 }
 
 export function NewMatchForm({ busy, error, progress, onStart }: NewMatchFormProps) {
-  const [aiLevel, setAiLevel] = useState<Difficulty>(progress?.policy.suggestedDifficulty ?? 'intermediate');
+  // Progress arrives after the first render, so the suggested level has to be
+  // read live rather than captured as initial state — until the player picks.
+  const [chosenLevel, setChosenLevel] = useState<Difficulty | null>(null);
+  const aiLevel = chosenLevel ?? progress?.policy.suggestedDifficulty ?? 'intermediate';
   const [matchLength, setMatchLength] = useState(1);
   const [custom, setCustom] = useState(false);
   const [coaching, setCoaching] = useState(true);
@@ -39,7 +42,7 @@ export function NewMatchForm({ busy, error, progress, onStart }: NewMatchFormPro
               name="level"
               value={level.value}
               checked={aiLevel === level.value}
-              onChange={() => setAiLevel(level.value)}
+              onChange={() => setChosenLevel(level.value)}
             />
             <span>
               <strong>{level.label}</strong>
