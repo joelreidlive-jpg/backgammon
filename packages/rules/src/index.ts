@@ -6,3 +6,4 @@ export * from './match.js';
 export * from './notation.js';
 export * from './testing.js';
 export * from './turnBuilder.js';
+export * from './xgid.js';

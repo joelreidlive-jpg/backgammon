@@ -26,6 +26,7 @@ Object per match holds the authoritative game state.
 | `packages/ai` | Heuristic evaluator, 2-ply expectimax over the 21 distinct rolls, cube decisions, difficulty profiles. |
 | `packages/coach` | Equity-loss classification, board-concept diffs, escalating hints, cube grading, skill tiers, end-of-game review. |
 | `packages/protocol` | Wire types shared by Worker and client. Type-only, so it compiles away. |
+| `packages/bench` | Benchmark positions with known-best plays, and the harness that measures how often the evaluator agrees. |
 | `apps/api` | Hono Worker plus the `MatchDO` Durable Object. |
 | `apps/web` | React + Vite client with an SVG board. |
 
@@ -50,6 +51,45 @@ equityLoss = equity(bestTurn) − equity(playedTurn)
 banded into `fine` / `inaccuracy` / `error` / `blunder`. Explanations are
 deterministic diffs of named board concepts ("the better play makes a home
 board point"), never a language model deciding what the mistake was.
+
+## Measuring the engine
+
+Coaching quality is capped by evaluator quality, so the evaluator needs a number
+rather than an opinion. `packages/bench` holds positions with a known best play
+and reports how often the engine's first choice agrees:
+
+```
+npx vitest run packages/bench/src/report.test.ts
+
+15 positions · agreement 53% · reference in top 3 100%
+mean equity gap on disagreement 0.043
+```
+
+The seed set is the fifteen opening rolls, which are the most analysed positions
+in the game and whose answers are public knowledge rather than any author's
+work. Positions are stored as XGID strings — the format every bot and problem
+collection can emit — so a set can be assembled from any source. Only facts are
+stored: position, roll, play, and our own concept tags. Never someone else's
+prose.
+
+The first run of this harness scored **40%**, and said exactly why: 100% on
+making points, 0% on splitting and anchoring. The engine was paid a flat bonus
+for the 24-point "anchor" it starts with, charged a near-catastrophic penalty
+for a checker on the bar, and given nothing for builders, so its cheapest way to
+avoid all three was to bury both dice in one safe checker. Fixing those three
+terms took it to 53% with the consensus play always in its top three, and it
+wins by 169 points over 2000 self-play games against the old weights — a real
+gain over the board, not an artefact of tuning on fifteen positions.
+
+`packages/bench/src/bench.test.ts` locks those figures in as a ratchet, so the
+evaluator cannot quietly get worse. `sweep.test.ts` and `selfplay.test.ts` are
+skipped by default: they are the tools for the next round of tuning, not checks.
+
+The harness also grades difficulty, which is what makes a training ladder
+possible: a problem is hard when the best play barely beats the runner-up, and
+easy when it wins by a mile. That grade comes from the engine, so it re-grades
+itself as the evaluator improves, and can be combined with a player's own leak
+profile to serve problems that target their actual weaknesses.
 
 ### Strategy, phases and the cube
 
