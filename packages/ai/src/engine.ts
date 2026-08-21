@@ -1,8 +1,7 @@
-import { type MatchState, type Turn, canDouble, opponent } from '@bg/rules';
+import { type MatchState, type Turn, canDouble } from '@bg/rules';
 import { type CubeDecision, type CubeResponse, decideDouble, decideTake } from './cubeDecision.js';
 import { DIFFICULTY_PROFILES, type Difficulty, type Random, selectTurn } from './difficulty.js';
-import { heuristicEvaluator } from './heuristic.js';
-import { type RankedTurn, rankTurns } from './search.js';
+import { type RankedTurn, expectedEquity, rankTurns } from './search.js';
 
 export interface TurnDecision {
   readonly chosen: RankedTurn;
@@ -22,14 +21,17 @@ export function decideCubeAction(state: MatchState, difficulty: Difficulty): Cub
   if (!canDouble(state, state.turn)) return null;
   // Weaker levels do not use the cube aggressively.
   if (difficulty === 'beginner') return null;
-  return decideDouble(heuristicEvaluator(state.board, state.turn));
+  // Priced before the dice are known, like the decision itself: a static
+  // evaluation of the position on roll systematically misprices the cube.
+  return decideDouble(expectedEquity(state.board, state.turn));
 }
 
 /** How the engine answers a double it has been offered. */
 export function decideCubeResponse(state: MatchState): CubeResponse {
   if (state.pendingDouble === null) throw new Error('no double pending');
-  const responder = opponent(state.pendingDouble);
-  return decideTake(heuristicEvaluator(state.board, responder)).response;
+  // The doubler is on roll, not the responder, so the position is valued from
+  // the doubler's side and negated.
+  return decideTake(-expectedEquity(state.board, state.pendingDouble)).response;
 }
 
 export type { Turn };

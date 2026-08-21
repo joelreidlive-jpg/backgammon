@@ -180,6 +180,7 @@ export function App() {
               setSession(null);
               setView(null);
               setReview(null);
+              setError(null);
             }}
           >
             New match
@@ -220,7 +221,16 @@ export function App() {
                 {state.result?.winner === seat ? 'You win' : 'You lose'} {state.result?.points} point
                 {state.result?.points === 1 ? '' : 's'}.
               </p>
-              <button type="button" disabled={busy} onClick={() => void run(() => api.nextGame(session))}>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  // Otherwise the debrief for the game just finished is still
+                  // on screen when the next one ends.
+                  setReview(null);
+                  void run(() => api.nextGame(session));
+                }}
+              >
                 Next game
               </button>
             </>

@@ -105,14 +105,12 @@ export function analyseCubeDecision(board: Board, player: Player, choice: 'doubl
 
   let mistake: CubeMistake = 'none';
   if (choice !== best) {
+    // "Too good" needs a gammon estimate this evaluator does not have — its
+    // implied win probability saturates near 1 well before a position is
+    // genuinely too good — so a position is only classified that way when the
+    // cubeless equity already exceeds the point a cash would collect.
     mistake =
-      best === 'double'
-        ? 'missed-double'
-        : // Failing to double from a winning position is only "too good" when
-          // the position is strong enough that a drop would short-change you.
-          noDouble > 1
-          ? 'too-good-to-double'
-          : 'premature-double';
+      best === 'double' ? 'missed-double' : noDouble > 1 ? 'too-good-to-double' : 'premature-double';
   }
 
   return {
