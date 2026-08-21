@@ -4,7 +4,14 @@ import { heuristicEvaluator, winProbability } from './heuristic.js';
 import { shotsAgainst, shotsFrom } from './shots.js';
 import { ROLLS, bestTurn, rankTurns } from './search.js';
 import { DIFFICULTY_PROFILES, selectTurn } from './difficulty.js';
-import { decideDouble, decideTake } from './cubeDecision.js';
+import {
+  DOUBLE_POINT,
+  TAKE_POINT,
+  TOO_GOOD_POINT,
+  decideDouble,
+  decideTake,
+  equityAtWinProbability,
+} from './cubeDecision.js';
 import { decideTurn } from './engine.js';
 
 describe('shot counting', () => {
@@ -144,14 +151,21 @@ describe('cube decisions', () => {
     expect(decideDouble(0).action).toBe('no-double');
   });
 
+  // Stated as win probabilities and converted, rather than as raw evaluator
+  // scores: what a score is worth in wins is a measured, changeable thing, and
+  // a test written in scores would only assert the calibration of the day.
   it('doubles when clearly ahead and plays on when overwhelming', () => {
-    expect(decideDouble(0.5).action).toBe('double');
-    expect(decideDouble(0.9).action).toBe('too-good');
+    expect(decideDouble(equityAtWinProbability(DOUBLE_POINT + 0.02)).action).toBe('double');
+    expect(decideDouble(equityAtWinProbability(TOO_GOOD_POINT + 0.02)).action).toBe('too-good');
+  });
+
+  it('does not double on the sort of lead that merely looks good', () => {
+    expect(decideDouble(equityAtWinProbability(DOUBLE_POINT - 0.05)).action).toBe('no-double');
   });
 
   it('drops a double when far behind and takes when close', () => {
-    expect(decideTake(-0.8).response).toBe('drop');
-    expect(decideTake(-0.2).response).toBe('take');
+    expect(decideTake(equityAtWinProbability(TAKE_POINT - 0.05)).response).toBe('drop');
+    expect(decideTake(equityAtWinProbability(TAKE_POINT + 0.05)).response).toBe('take');
   });
 });
 

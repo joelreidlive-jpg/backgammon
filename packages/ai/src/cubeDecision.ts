@@ -1,4 +1,4 @@
-import { winProbability } from './heuristic.js';
+import { scoreAtWinProbability, winProbabilityFromScore } from './calibration.js';
 
 export type CubeAction = 'no-double' | 'double' | 'too-good';
 export type CubeResponse = 'take' | 'drop';
@@ -15,12 +15,12 @@ export const DOUBLE_POINT = 0.68;
 export const TOO_GOOD_POINT = 0.88;
 
 /**
- * Inverse of `winProbability`. Cube thresholds are stated as win probabilities
- * but have to be compared against equities, which is the only place the two
- * scales need to meet.
+ * Inverse of the win-probability mapping. Cube thresholds are stated as win
+ * probabilities but have to be compared against equities, which is the only
+ * place the two scales need to meet.
  */
 export function equityAtWinProbability(p: number): number {
-  return 2 * p - 1;
+  return scoreAtWinProbability(p);
 }
 
 export interface CubeDecision {
@@ -31,13 +31,18 @@ export interface CubeDecision {
 /**
  * Approximate cube handling from a cubeless equity.
  *
- * This is a threshold model, not a match-equity table: it ignores match score,
- * gammon rates and recube vantage. It plays a sane cube, but replacing it with
+ * The win probability comes from the calibration table — measured by rolling
+ * sampled positions out to the end — rather than from reading the evaluator's
+ * score as a probability, which overstated a modest lead badly enough to make
+ * these thresholds meaningless.
+ *
+ * This is still a threshold model, not a match-equity table: it ignores match
+ * score, gammon rates and recube vantage. It plays a sane cube, but replacing it with
  * a real match-equity table is the single biggest strength upgrade available
  * after the checker-play evaluator.
  */
 export function decideDouble(equity: number): CubeDecision {
-  const p = winProbability(equity);
+  const p = winProbabilityFromScore(equity);
   if (p >= TOO_GOOD_POINT) return { action: 'too-good', winProbability: p };
   if (p >= DOUBLE_POINT) return { action: 'double', winProbability: p };
   return { action: 'no-double', winProbability: p };
@@ -45,6 +50,6 @@ export function decideDouble(equity: number): CubeDecision {
 
 /** `equity` is the responding side's cubeless equity before the cube is turned. */
 export function decideTake(equity: number): { response: CubeResponse; winProbability: number } {
-  const p = winProbability(equity);
+  const p = winProbabilityFromScore(equity);
   return { response: p >= TAKE_POINT ? 'take' : 'drop', winProbability: p };
 }

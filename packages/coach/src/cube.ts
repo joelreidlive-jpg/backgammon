@@ -4,7 +4,7 @@ import {
   TAKE_POINT,
   equityAtWinProbability,
   expectedEquity,
-  winProbability,
+  winProbabilityFromScore,
 } from '@bg/ai';
 import { type Severity, classifyEquityLoss } from './classify.js';
 import { type GamePhase, phaseOf } from './phase.js';
@@ -59,7 +59,7 @@ const CUBE_WINDOW = 0.04;
  * once playing on is worth more than that.
  */
 function cubeEquities(equity: number): { noDouble: number; double: number; opponentTakes: boolean } {
-  const opponentWinChance = 1 - winProbability(equity);
+  const opponentWinChance = 1 - winProbabilityFromScore(equity);
   const opponentTakes = opponentWinChance >= TAKE_POINT;
   return {
     noDouble: equity,
@@ -69,8 +69,9 @@ function cubeEquities(equity: number): { noDouble: number; double: number; oppon
 }
 
 function describe(mistake: CubeMistake, p: number): string {
-  // Hedged deliberately: this is the heuristic evaluator's implied win chance,
-  // not a rollout, and it should not be read as a precise number.
+  // Hedged deliberately: the mapping from score to win chance is calibrated
+  // against rollouts, but the score being mapped is still the heuristic's, so
+  // this should not be read as a precise number.
   const chance = `roughly ${Math.round(p * 100)}%`;
   switch (mistake) {
     case 'missed-double':
@@ -98,7 +99,7 @@ function describe(mistake: CubeMistake, p: number): string {
 export function analyseCubeDecision(board: Board, player: Player, choice: 'double' | 'no-double'): CubeAnalysis {
   const equity = expectedEquity(board, player);
   const { noDouble, double } = cubeEquities(equity);
-  const p = winProbability(equity);
+  const p = winProbabilityFromScore(equity);
 
   const best: CubeChoice = double > noDouble ? 'double' : 'no-double';
   const equityLoss = Math.max(0, Math.max(noDouble, double) - (choice === 'double' ? double : noDouble));
@@ -142,7 +143,7 @@ export function analyseCubeResponse(board: Board, player: Player, choice: 'take'
   // The responder is not on roll — the doubler is — so the position is valued
   // from the doubler's side and then negated.
   const equity = -expectedEquity(board, opponent(player));
-  const p = winProbability(equity);
+  const p = winProbabilityFromScore(equity);
 
   // Symmetrically, taking is priced so that it breaks even against a drop
   // exactly at the take point rather than at even money.

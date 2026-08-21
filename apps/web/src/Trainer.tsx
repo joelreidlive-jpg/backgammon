@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { TurnBuilder } from '@bg/rules';
 import { destinationsFrom, extendTurn, startTurn, undoLastMove } from '@bg/rules';
-import type { TrainerAttemptResponse, TrainerProblemResponse } from '@bg/protocol';
+import type { Provenance, TrainerAttemptResponse, TrainerProblemResponse } from '@bg/protocol';
 import { Board } from './Board.js';
 import { api, loadPlayerToken, savePlayerToken } from './api.js';
 
@@ -13,6 +13,21 @@ const PHASE_NAMES: Readonly<Record<string, string>> = {
   holding: 'Holding game',
   race: 'Race',
   bearoff: 'Bear-off',
+};
+
+const PROVENANCE: Readonly<Record<Provenance, { label: string; hint: string }>> = {
+  consensus: {
+    label: 'expert answer',
+    hint: 'The answer is published expert agreement.',
+  },
+  engine: {
+    label: 'engine answer',
+    hint: "The answer is this app's own engine, which agrees with expert play about half the time on the opening rolls. Treat it as a sparring partner, not an authority.",
+  },
+  rollout: {
+    label: 'rollout answer',
+    hint: 'The answer was found by playing the position out thousands of times and kept only where one play beat the rest by a clear margin. Much more reliable than the plain engine answer, but still the engine judging itself.',
+  },
 };
 
 export interface TrainerProps {
@@ -152,12 +167,8 @@ export function Trainer({ onExit }: TrainerProps) {
               <p className="muted">
                 {PHASE_NAMES[problem.phase] ?? problem.phase} · tier {problem.tier}
                 {' · '}
-                <span title={
-                  problem.provenance === 'consensus'
-                    ? 'The answer is published expert agreement.'
-                    : "The answer is this app's own engine, which agrees with expert play about half the time on the opening rolls. Treat it as a sparring partner, not an authority."
-                }>
-                  {problem.provenance === 'consensus' ? 'expert answer' : 'engine answer'}
+                <span title={PROVENANCE[problem.provenance].hint}>
+                  {PROVENANCE[problem.provenance].label}
                 </span>
               </p>
 
