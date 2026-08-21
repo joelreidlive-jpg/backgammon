@@ -24,10 +24,13 @@ export type Tier = 1 | 2 | 3 | 4 | 5;
  *
  * `consensus` answers are public expert agreement. `engine` answers are this
  * repository's own search, which agrees with consensus on roughly half of the
- * opening rolls — good enough to drill shapes, not an authority. The
+ * opening rolls — good enough to drill shapes, not an authority. `rollout`
+ * answers were played out thousands of times and kept only where the winning
+ * play separated from the field by several standard errors, which agrees with
+ * consensus far more often but is still this engine judging itself. The
  * distinction is shown to the player rather than hidden.
  */
-export type Provenance = 'consensus' | 'engine';
+export type Provenance = 'consensus' | 'engine' | 'rollout';
 
 export interface Problem {
   readonly id: string;
