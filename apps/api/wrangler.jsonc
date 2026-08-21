@@ -30,14 +30,13 @@
     }
   ],
   // A player's progress outlives any one match, so it cannot live in a match
-  // Durable Object. Create the database with
-  //   wrangler d1 create backgammon
-  // and paste the returned id here; local `wrangler dev` needs no id.
+  // Durable Object. The id identifies the database but grants no access, so it
+  // is committed to keep deploys reproducible; local `wrangler dev` ignores it.
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "backgammon",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "database_id": "ad3994e7-f2ff-41b9-b0ae-2eee51574d98",
       "migrations_dir": "migrations"
     }
   ]
