@@ -9,6 +9,8 @@ import type {
   HistoryEntry,
   MatchView,
   ProgressResponse,
+  TrainerAttemptResponse,
+  TrainerProblemResponse,
 } from '@bg/protocol';
 
 const TOKEN_KEY = 'bg.playerToken';
@@ -118,4 +120,16 @@ export const api = {
 
   history: ({ matchId, playerToken }: Session) =>
     request<HistoryEntry[]>(`/api/matches/${matchId}/history`, { token: playerToken }),
+
+  // The trainer can be the first thing a visitor touches, so it works without
+  // a token and returns the one the server minted.
+  nextProblem: (playerToken: string | null) =>
+    request<TrainerProblemResponse>('/api/trainer/next', { token: playerToken ?? undefined }),
+
+  attempt: (playerToken: string, problemId: string, moves: readonly Move[]) =>
+    request<TrainerAttemptResponse>('/api/trainer/attempt', {
+      method: 'POST',
+      token: playerToken,
+      body: JSON.stringify({ problemId, moves }),
+    }),
 };

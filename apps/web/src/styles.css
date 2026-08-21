@@ -421,6 +421,33 @@ main {
   color: #d9a441;
 }
 
+/* Trainer
+   ------------------------------------------------------------------------ */
+
+.trainer-entry {
+  margin-top: 0.75rem;
+}
+
+.attempt {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  border-left: 3px solid #4a5568;
+  padding-left: 0.75rem;
+}
+
+.attempt.solved {
+  border-left-color: #4f9d69;
+}
+
+.attempt.missed {
+  border-left-color: #c25b53;
+}
+
+.attempt p {
+  margin: 0;
+}
+
 /* Touch and small screens
    ------------------------------------------------------------------------
    The board is the app: on a phone it should own the whole viewport and the

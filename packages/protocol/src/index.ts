@@ -11,6 +11,14 @@ import type {
   SkillTier,
   TurnAnalysis,
 } from '@bg/coach';
+import type {
+  AttemptResult,
+  LadderState,
+  ProblemPrompt,
+  Provenance,
+  Tier,
+  TierProgress,
+} from '@bg/trainer';
 
 /**
  * Wire types shared by the Worker and the browser.
@@ -31,6 +39,8 @@ export type {
   SkillTier,
   TurnAnalysis,
 };
+
+export type { AttemptResult, LadderState, ProblemPrompt, Provenance, Tier, TierProgress };
 
 export interface CreateMatchRequest {
   readonly aiLevel?: Difficulty;
@@ -99,4 +109,28 @@ export interface ProgressResponse {
   readonly weakestPhase: string | null;
   readonly focus: readonly string[];
   readonly recentGames: readonly GameSummary[];
+}
+
+export interface TrainerProblemResponse {
+  /** The caller's token, minted here if the browser did not send one. */
+  readonly playerToken: string;
+  /** Null only if the problem set is empty. */
+  readonly problem: ProblemPrompt | null;
+  readonly ladder: LadderState;
+  /** Why this problem was chosen, in the coach's own advice vocabulary. */
+  readonly focus: readonly string[];
+  readonly attempted: number;
+  readonly solved: number;
+}
+
+export interface TrainerAttemptRequest {
+  readonly problemId: string;
+  readonly moves: readonly Move[];
+}
+
+export interface TrainerAttemptResponse {
+  readonly result: AttemptResult;
+  readonly ladder: LadderState;
+  /** True when this attempt unlocked a harder tier. */
+  readonly unlocked: boolean;
 }

@@ -11,10 +11,28 @@ import {
   weakestConcepts,
   weakestPhase,
 } from '@bg/coach';
+import {
+  PROBLEMS,
+  type Tier,
+  gradeAttempt,
+  ladderState,
+  load as loadProblem,
+  loadById,
+  prompt,
+  selectProblem,
+} from '@bg/trainer';
 import { MatchError } from './match-do.js';
 import type { MatchDO } from './match-do.js';
-import type { CreateMatchRequest, CubeCommand, ProgressResponse } from '@bg/protocol';
+import type {
+  CreateMatchRequest,
+  CubeCommand,
+  ProgressResponse,
+  TrainerAttemptRequest,
+  TrainerAttemptResponse,
+  TrainerProblemResponse,
+} from '@bg/protocol';
 import { loadProgress, newPlayerToken, playerKey, recentGames } from './players.js';
+import { loadAttempts, recordAttempt } from './trainer.js';
 
 export { MatchDO } from './match-do.js';
 
@@ -129,6 +147,65 @@ app.get('/api/matches/:id/review', async (c) => {
 app.get('/api/matches/:id/history', async (c) => {
   const history = await stub(c.env, c.req.param('id')).history(token(c.req.header('x-player-token')));
   return c.json(history);
+});
+
+/**
+ * The hardest tier the set actually contains. Read from the data rather than
+ * fixed at 4, so adding externally verified tier-5 positions extends the
+ * ladder without a code change.
+ */
+const MAX_TIER = PROBLEMS.reduce<Tier>((max, problem) => (problem.tier > max ? problem.tier : max), 1);
+
+app.get('/api/trainer/next', async (c) => {
+  // The trainer is reachable without ever having played a match, so it mints
+  // the identity if the browser does not have one yet.
+  const playerToken = c.req.header('x-player-token') ?? newPlayerToken();
+  const key = await playerKey(playerToken);
+  const [progress, attempts] = await Promise.all([
+    loadProgress(c.env.DB, key),
+    loadAttempts(c.env.DB, key),
+  ]);
+
+  const ladder = ladderState(attempts, MAX_TIER);
+  const weakConcepts = weakestConcepts(progress, 3);
+  const problem = selectProblem({ problems: PROBLEMS, attempts, weakConcepts, tier: ladder.tier });
+
+  const response: TrainerProblemResponse = {
+    playerToken,
+    problem: problem ? prompt(loadProblem(problem)) : null,
+    ladder,
+    focus: [
+      ...(problem ? [PHASE_GUIDANCE[problem.phase]] : []),
+      ...weakConcepts.slice(0, 2).map((concept) => CONCEPT_ADVICE[concept]),
+    ],
+    attempted: attempts.length,
+    solved: attempts.filter((attempt) => attempt.solved).length,
+  };
+  return c.json(response);
+});
+
+app.post('/api/trainer/attempt', async (c) => {
+  const key = await playerKey(token(c.req.header('x-player-token')));
+  const body = await c.req.json<TrainerAttemptRequest>().catch(() => null);
+  if (!body || typeof body.problemId !== 'string' || !Array.isArray(body.moves)) {
+    throw new MatchError('problemId and moves are required', 400);
+  }
+
+  // Grading happens here, from the stored answer, because the client is never
+  // sent the answer: it can only submit a play and be told what it cost.
+  const problem = loadById(body.problemId);
+  if (!problem) throw new MatchError('unknown problem', 404);
+
+  const result = gradeAttempt(problem, body.moves);
+  if (!result) throw new MatchError('that is not a legal turn with this roll', 400);
+
+  const attempts = await loadAttempts(c.env.DB, key);
+  const before = ladderState(attempts, MAX_TIER);
+  const record = await recordAttempt(c.env.DB, key, problem.tier, result);
+  const ladder = ladderState([record, ...attempts], MAX_TIER);
+
+  const response: TrainerAttemptResponse = { result, ladder, unlocked: ladder.tier > before.tier };
+  return c.json(response);
 });
 
 app.all('/api/*', (c) => c.json({ error: 'not found' }, 404));

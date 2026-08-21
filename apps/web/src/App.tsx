@@ -6,6 +6,7 @@ import { Board } from './Board.js';
 import { CoachPanel } from './CoachPanel.js';
 import { NewMatchForm } from './NewMatchForm.js';
 import { ReviewPanel } from './ReviewPanel.js';
+import { Trainer } from './Trainer.js';
 import {
   api,
   clearSession,
@@ -32,6 +33,7 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<ProgressResponse | null>(null);
   const [review, setReview] = useState<GameReview | null>(null);
+  const [training, setTraining] = useState(false);
 
   const adopt = useCallback((next: MatchView) => {
     setView(next);
@@ -117,10 +119,13 @@ export function App() {
     [builder, selected],
   );
 
+  if (training) return <Trainer onExit={() => setTraining(false)} />;
+
   if (!session || !view) {
     return (
       <NewMatchForm
         busy={busy}
+        onTrain={() => setTraining(true)}
         progress={progress}
         onStart={async (request) => {
           setBusy(true);

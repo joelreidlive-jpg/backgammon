@@ -27,6 +27,7 @@ Object per match holds the authoritative game state.
 | `packages/coach` | Equity-loss classification, board-concept diffs, escalating hints, cube grading, skill tiers, end-of-game review. |
 | `packages/protocol` | Wire types shared by Worker and client. Type-only, so it compiles away. |
 | `packages/bench` | Benchmark positions with known-best plays, and the harness that measures how often the evaluator agrees. |
+| `packages/trainer` | Problem set, grading of a submitted play against the stored answer, weakness-driven selection, and the tier ladder. |
 | `apps/api` | Hono Worker plus the `MatchDO` Durable Object. |
 | `apps/web` | React + Vite client with an SVG board. |
 
@@ -126,6 +127,38 @@ Progress is keyed to an opaque bearer token held in `localStorage` and stored in
 D1 under a SHA-256 digest of it, so the database never holds the secret. It
 survives across matches with no login, and is lost if the browser is cleared.
 Accounts map onto the same key later without changing anything beneath it.
+
+## The problem trainer
+
+One position, one roll, one play, graded — the ladder a game cannot give you,
+because a game only asks the questions the dice happen to ask.
+
+Difficulty is not assigned by an author: a problem's tier comes from the equity
+margin between the best play and the runner-up, so the set re-grades itself when
+the evaluator changes. Problems are chosen to attack the concepts the player
+actually leaks equity on, skipping anything answered in the last twenty
+attempts, and the next tier unlocks on seven solved out of the last ten. There
+is no demotion — a bad run at a harder tier is the point of the harder tier.
+
+Two limits are deliberate, and visible to the player rather than hidden:
+
+- **Provenance is labelled.** `consensus` answers are published expert
+  agreement; `engine` answers are this repository's own search, which agrees
+  with consensus on roughly half the opening rolls.
+- **Generated problems stop at tier 4.** The engine is least reliable exactly
+  where a problem is hardest, since a tiny margin is inside its own error, so
+  tier 5 is reserved for externally verified positions.
+
+The answer never reaches the browser: the client gets a position and the legal
+turns, and learns the right play only once it has submitted one. A play within
+0.02 equity of the answer still counts as solved — below that the evaluator
+cannot separate the plays, so failing the player would be measuring its noise.
+
+Regenerating the set is deterministic and takes a couple of minutes:
+
+```sh
+GENERATE_PROBLEMS=1 npx vitest run packages/trainer/src/build-problems.test.ts
+```
 
 ## Running it
 

@@ -47,6 +47,9 @@ importers:
       '@bg/rules':
         specifier: workspace:*
         version: link:../../packages/rules
+      '@bg/trainer':
+        specifier: workspace:*
+        version: link:../../packages/trainer
       hono:
         specifier: ^4.6.14
         version: 4.12.33
@@ -124,8 +127,26 @@ importers:
       '@bg/rules':
         specifier: workspace:*
         version: link:../rules
+      '@bg/trainer':
+        specifier: workspace:*
+        version: link:../trainer
 
   packages/rules: {}
+
+  packages/trainer:
+    dependencies:
+      '@bg/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@bg/bench':
+        specifier: workspace:*
+        version: link:../bench
+      '@bg/coach':
+        specifier: workspace:*
+        version: link:../coach
+      '@bg/rules':
+        specifier: workspace:*
+        version: link:../rules
 
 packages:
 
