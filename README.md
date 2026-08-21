@@ -142,13 +142,22 @@ pnpm dev:web                  # vite on :5173, /api proxied to :8787
 
 ## Deploying
 
-```sh
-wrangler d1 create backgammon            # once; paste the id into wrangler.jsonc
-wrangler d1 migrations apply backgammon  # add --local for wrangler dev
+Live at https://backgammon.joelreidlive.workers.dev.
 
-pnpm --filter @bg/web build
-pnpm --filter @bg/api deploy
+```sh
+# The D1 database already exists; its id is committed in wrangler.jsonc.
+# To recreate it from scratch: wrangler d1 create backgammon
+
+cd apps/api
+wrangler d1 migrations apply backgammon --remote  # drop --remote for wrangler dev
+
+cd ../..
+pnpm --filter @bg/web build   # the Worker serves apps/web/dist
+pnpm --filter @bg/api run deploy
 ```
+
+`run` is not optional on the last line: pnpm has its own `deploy` command that
+would otherwise shadow the script.
 
 **The Workers Paid plan is required.** A 2-ply search is a few tens of
 milliseconds of CPU; the free plan's limit is 10 ms per request. Paid allows up
