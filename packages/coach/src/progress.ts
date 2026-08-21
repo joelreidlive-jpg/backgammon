@@ -121,7 +121,9 @@ export function coachingPolicy(progress: PlayerProgress, phase?: GamePhase): Coa
 /** The concepts a player misses most, worst first. */
 export function weakestConcepts(progress: PlayerProgress, limit = 3): Concept[] {
   return Object.entries(progress.byConcept)
-    .filter((entry): entry is [Concept, ConceptTally] => entry[1] !== undefined)
+    // Concepts that have never cost anything are not weaknesses, and offering
+    // advice on them pushes the real leaks out of the list.
+    .filter((entry): entry is [Concept, ConceptTally] => (entry[1]?.equityLoss ?? 0) > 0)
     .sort((a, b) => b[1].equityLoss - a[1].equityLoss)
     .slice(0, limit)
     .map(([concept]) => concept);

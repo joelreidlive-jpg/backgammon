@@ -34,6 +34,8 @@ import {
   reviewGame,
 } from '@bg/coach';
 import type { CreateMatchRequest, CubeCommand, HistoryEntry, MatchView } from '@bg/protocol';
+import { matchOptions } from './matchOptions.js';
+import { lastTurnBy, opponentTurnsSince } from './moveLog.js';
 import { loadProgress, recordGame } from './players.js';
 
 export class MatchError extends Error {
@@ -72,6 +74,8 @@ interface MoveRow extends Record<string, SqlStorageValue> {
 interface CubeRow extends Record<string, SqlStorageValue> {
   seq: number;
   game: number;
+  /** The move sequence number this decision was taken before, so a take-back can undo it. */
+  move_seq: number;
   analysis: string;
 }
 
@@ -135,9 +139,20 @@ export class MatchDO extends DurableObject<Env> {
         CREATE TABLE IF NOT EXISTS cube_decisions (
           seq INTEGER PRIMARY KEY,
           game INTEGER NOT NULL,
+          move_seq INTEGER NOT NULL DEFAULT 0,
           analysis TEXT NOT NULL
         )
       `);
+      // Matches created before cube decisions were tied to the move log: their
+      // rows default to sequence 0, so a take-back leaves them in place rather
+      // than deleting decisions it cannot place.
+      const columns = this.sql
+        .exec<{ name: string }>('PRAGMA table_info(cube_decisions)')
+        .toArray()
+        .map((column) => column.name);
+      if (!columns.includes('move_seq')) {
+        this.sql.exec('ALTER TABLE cube_decisions ADD COLUMN move_seq INTEGER NOT NULL DEFAULT 0');
+      }
     });
   }
 
@@ -150,13 +165,12 @@ export class MatchDO extends DurableObject<Env> {
       throw new MatchError('match already exists', 409);
     }
 
-    const matchLength = Math.min(25, Math.max(1, Math.trunc(request.matchLength ?? 1)));
-    const seat = request.seat ?? 'white';
+    const options = matchOptions(request);
     const meta: MatchMeta = {
       matchId,
-      seat,
-      aiLevel: request.aiLevel ?? 'intermediate',
-      coaching: request.coaching ?? true,
+      seat: options.seat,
+      aiLevel: options.aiLevel,
+      coaching: options.coaching,
       playerToken: player.token,
       playerKey: player.key,
       createdAt: Date.now(),
@@ -168,7 +182,7 @@ export class MatchDO extends DurableObject<Env> {
     const opening = openingRoll();
     // The higher die wins the opening roll; white owns the first die by convention.
     const first: Player = opening[0] > opening[1] ? 'white' : 'black';
-    let state = newMatch(matchLength, first, opening);
+    let state = newMatch(options.matchLength, first, opening);
 
     await this.ctx.storage.put('meta', meta);
     state = this.advanceAI(state, meta);
@@ -196,7 +210,7 @@ export class MatchDO extends DurableObject<Env> {
         : null;
     // Correct no-doubles count too, so the cube error rate has a denominator of
     // real decisions rather than only the ones that went wrong.
-    if (declined && isCubeDecisionPoint(declined)) this.recordCube(state.gameNumber, declined);
+    if (declined && isCubeDecisionPoint(declined)) this.recordCube(state, declined);
 
     state = roll(state, rollDice());
     await this.putState(state);
@@ -249,7 +263,7 @@ export class MatchDO extends DurableObject<Env> {
       state = respondToDouble(state, command);
     }
 
-    if (cubeAnalysis) this.recordCube(state.gameNumber, cubeAnalysis);
+    if (cubeAnalysis) this.recordCube(state, cubeAnalysis);
 
     state = this.advanceAI(state, meta);
     await this.putState(state);
@@ -289,18 +303,27 @@ export class MatchDO extends DurableObject<Env> {
     return buildHint(state.board, meta.seat, state.dice, level);
   }
 
-  /** Undo the human's last turn, and the AI reply it triggered. */
+  /** Undo the human's last turn of the current game, and the AI reply it triggered. */
   async takeback(token: string): Promise<MatchView> {
     const meta = await this.requireMeta(token);
     if (!meta.coaching) throw new MatchError('coaching is disabled for this match', 403);
 
+    const current = await this.requireState();
+    // The result is already scored and written to the player's permanent
+    // record, so unwinding it would leave the two disagreeing.
+    if (current.phase === 'game-over' || current.phase === 'match-over') {
+      throw new MatchError('the game is over', 409);
+    }
+
     const rows = this.sql
-      .exec<MoveRow>('SELECT * FROM moves ORDER BY seq DESC')
+      .exec<MoveRow>('SELECT * FROM moves WHERE game = ? ORDER BY seq DESC', current.gameNumber)
       .toArray();
-    const lastHuman = rows.find((row) => row.player === meta.seat);
+    const lastHuman = lastTurnBy(rows, meta.seat, current.gameNumber);
     if (!lastHuman) throw new MatchError('nothing to take back', 409);
 
     this.sql.exec('DELETE FROM moves WHERE seq >= ?', lastHuman.seq);
+    // Otherwise the cube decision taken on the same roll is graded twice.
+    this.sql.exec('DELETE FROM cube_decisions WHERE move_seq >= ?', lastHuman.seq);
     await this.ctx.storage.put('takebacksUsed', ((await this.ctx.storage.get<number>('takebacksUsed')) ?? 0) + 1);
 
     const state = JSON.parse(lastHuman.state_before) as MatchState;
@@ -354,6 +377,11 @@ export class MatchDO extends DurableObject<Env> {
     throw new MatchError('engine failed to yield the turn', 500);
   }
 
+  /** The sequence number the next recorded move will take. */
+  private nextMoveSeq(): number {
+    return this.sql.exec<{ seq: number }>('SELECT COALESCE(MAX(seq), 0) + 1 AS seq FROM moves').one().seq;
+  }
+
   private record(
     before: MatchState,
     after: MatchState,
@@ -362,7 +390,7 @@ export class MatchDO extends DurableObject<Env> {
     notation: string,
     analysis: TurnAnalysis | null,
   ): void {
-    const next = this.sql.exec<{ seq: number }>('SELECT COALESCE(MAX(seq), 0) + 1 AS seq FROM moves').one().seq;
+    const next = this.nextMoveSeq();
     this.sql.exec(
       'INSERT INTO moves (seq, game, player, dice, notation, state_before, state_after, analysis, ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       next,
@@ -377,14 +405,15 @@ export class MatchDO extends DurableObject<Env> {
     );
   }
 
-  private recordCube(game: number, analysis: CubeAnalysis): void {
+  private recordCube(state: MatchState, analysis: CubeAnalysis): void {
     const next = this.sql
       .exec<{ seq: number }>('SELECT COALESCE(MAX(seq), 0) + 1 AS seq FROM cube_decisions')
       .one().seq;
     this.sql.exec(
-      'INSERT INTO cube_decisions (seq, game, analysis) VALUES (?, ?, ?)',
+      'INSERT INTO cube_decisions (seq, game, move_seq, analysis) VALUES (?, ?, ?, ?)',
       next,
-      game,
+      state.gameNumber,
+      this.nextMoveSeq(),
       JSON.stringify(analysis),
     );
   }
@@ -446,15 +475,20 @@ export class MatchDO extends DurableObject<Env> {
     } = {},
   ): Promise<MatchView> {
     const yours = state.turn === meta.seat;
+    // Scoped to the current game so a finished game's plays do not surface as
+    // the opponent's reply in the next one.
     const rows = this.sql
-      .exec<Pick<MoveRow, 'player' | 'notation'>>('SELECT player, notation FROM moves ORDER BY seq DESC LIMIT 8')
+      .exec<
+        Pick<MoveRow, 'seq' | 'game' | 'player' | 'notation'>
+      >(
+        'SELECT seq, game, player, notation FROM moves WHERE game = ? ORDER BY seq DESC LIMIT 8',
+        state.gameNumber,
+      )
       .toArray();
 
-    const aiPlays: string[] = [];
-    for (const row of rows) {
-      if (row.player === meta.seat) break;
-      aiPlays.unshift(row.notation);
-    }
+    const aiPlays = opponentTurnsSince(rows, meta.seat, state.gameNumber);
+
+    const over = state.phase === 'game-over' || state.phase === 'match-over';
 
     const policy = await this.policyFor(state, meta);
 
@@ -466,7 +500,11 @@ export class MatchDO extends DurableObject<Env> {
       state,
       legalTurns: yours ? currentLegalTurns(state).map((turn) => turn.moves) : [],
       canDouble: yours && canDouble(state, meta.seat),
-      canTakeback: meta.coaching && policy.offerTakeback && rows.some((row) => row.player === meta.seat),
+      canTakeback:
+        meta.coaching &&
+        policy.offerTakeback &&
+        !over &&
+        lastTurnBy(rows, meta.seat, state.gameNumber) !== null,
       lastAnalysis: last.analysis ?? null,
       lastCubeAnalysis: last.cubeAnalysis ?? null,
       policy,
