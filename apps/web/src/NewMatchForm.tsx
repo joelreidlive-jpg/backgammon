@@ -17,9 +17,10 @@ export interface NewMatchFormProps {
   error: string | null;
   progress: ProgressResponse | null;
   onStart: (request: CreateMatchRequest) => void;
+  onTrain: () => void;
 }
 
-export function NewMatchForm({ busy, error, progress, onStart }: NewMatchFormProps) {
+export function NewMatchForm({ busy, error, progress, onStart, onTrain }: NewMatchFormProps) {
   // Progress arrives after the first render, so the suggested level has to be
   // read live rather than captured as initial state — until the player picks.
   const [chosenLevel, setChosenLevel] = useState<Difficulty | null>(null);
@@ -104,6 +105,16 @@ export function NewMatchForm({ busy, error, progress, onStart }: NewMatchFormPro
       <button type="button" disabled={busy} onClick={() => onStart({ aiLevel, matchLength, coaching })}>
         {busy ? 'Starting…' : 'Start match'}
       </button>
+
+      <div className="trainer-entry">
+        <button type="button" className="link" onClick={onTrain}>
+          Train on problems
+        </button>
+        <span className="muted">
+          {' '}
+          — single positions, graded, getting harder as you solve them
+        </span>
+      </div>
 
       {progress && <ProgressPanel progress={progress} />}
     </div>

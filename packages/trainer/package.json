@@ -1,5 +1,5 @@
 {
-  "name": "@bg/protocol",
+  "name": "@bg/trainer",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -16,6 +16,6 @@
     "@bg/rules": "workspace:*",
     "@bg/ai": "workspace:*",
     "@bg/coach": "workspace:*",
-    "@bg/trainer": "workspace:*"
+    "@bg/bench": "workspace:*"
   }
 }
