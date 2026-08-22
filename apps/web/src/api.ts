@@ -2,6 +2,7 @@ import type { Move } from '@bg/rules';
 import type {
   CreateMatchRequest,
   CreateMatchResponse,
+  CubeAnswer,
   CubeCommand,
   Hint,
   HintLevel,
@@ -130,6 +131,13 @@ export const api = {
     request<TrainerAttemptResponse>('/api/trainer/attempt', {
       method: 'POST',
       token: playerToken,
-      body: JSON.stringify({ problemId, moves }),
+      body: JSON.stringify({ kind: 'checker', problemId, moves }),
+    }),
+
+  cubeAttempt: (playerToken: string, problemId: string, answer: CubeAnswer) =>
+    request<TrainerAttemptResponse>('/api/trainer/attempt', {
+      method: 'POST',
+      token: playerToken,
+      body: JSON.stringify({ kind: 'cube', problemId, answer }),
     }),
 };

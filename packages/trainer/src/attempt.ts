@@ -24,6 +24,7 @@ export const TRAINER_SEARCH: SearchOptions = { plies: 2, candidateWidth: 12 };
 export const NEAR_MISS = 0.02;
 
 export interface AttemptResult {
+  readonly kind: 'checker';
   readonly problemId: string;
   /** Whether the play is the stored answer or within `NEAR_MISS` of it. */
   readonly solved: boolean;
@@ -86,6 +87,7 @@ export function gradeAttempt(
   const difference = explainDifference(problem.board, playedTurn.board, answer.board, problem.player);
 
   return {
+    kind: 'checker',
     problemId: problem.id,
     solved: exact || equityLoss <= NEAR_MISS,
     exact,

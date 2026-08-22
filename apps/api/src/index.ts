@@ -12,16 +12,18 @@ import {
   weakestPhase,
 } from '@bg/coach';
 import {
+  CUBE_PROBLEMS,
   PROBLEMS,
   type Tier,
-  gradeAttempt,
+  cubePrompt,
+  cubeShare,
   ladderState,
   load as loadProblem,
-  loadById,
+  loadCubeById,
   prompt,
   selectProblem,
 } from '@bg/trainer';
-import { MatchError } from './match-do.js';
+import { MatchError } from './errors.js';
 import type { MatchDO } from './match-do.js';
 import type {
   CreateMatchRequest,
@@ -30,8 +32,10 @@ import type {
   TrainerAttemptRequest,
   TrainerAttemptResponse,
   TrainerProblemResponse,
+  TrainerPrompt,
 } from '@bg/protocol';
 import { loadProgress, newPlayerToken, playerKey, recentGames } from './players.js';
+import { gradeRequest } from './grading.js';
 import { loadAttempts, recordAttempt } from './trainer.js';
 
 export { MatchDO } from './match-do.js';
@@ -154,7 +158,14 @@ app.get('/api/matches/:id/history', async (c) => {
  * fixed at 4, so adding externally verified tier-5 positions extends the
  * ladder without a code change.
  */
-const MAX_TIER = PROBLEMS.reduce<Tier>((max, problem) => (problem.tier > max ? problem.tier : max), 1);
+const MAX_TIER = [...PROBLEMS, ...CUBE_PROBLEMS].reduce<Tier>(
+  (max, problem) => (problem.tier > max ? problem.tier : max),
+  1,
+);
+
+/** Why a cube question is being asked, in the same voice as the phase advice. */
+const CUBE_GUIDANCE =
+  'Cube decisions swing more equity than checker plays. Count how often you win a gammon here, not just how often you win.';
 
 app.get('/api/trainer/next', async (c) => {
   // The trainer is reachable without ever having played a match, so it mints
@@ -168,13 +179,34 @@ app.get('/api/trainer/next', async (c) => {
 
   const ladder = ladderState(attempts, MAX_TIER);
   const weakConcepts = weakestConcepts(progress, 3);
-  const problem = selectProblem({ problems: PROBLEMS, attempts, weakConcepts, tier: ladder.tier });
+
+  // Which sort of question comes next is decided before the position is: the
+  // player's cube record is a separate skill from their checker play, and the
+  // ladder would never reach the cube if it were a tiebreak between positions.
+  const wantsCube = CUBE_PROBLEMS.length > 0 && Math.random() < cubeShare(progress);
+  const cube = wantsCube
+    ? selectProblem({ problems: CUBE_PROBLEMS, attempts, weakConcepts, tier: ladder.tier })
+    : null;
+  const loadedCube = cube ? loadCubeById(cube.id) : null;
+  // Falling back to a checker problem rather than serving nothing: a cube
+  // problem that will not load is a bug in the data, not a reason to leave the
+  // player with an empty screen.
+  const problem = loadedCube
+    ? null
+    : selectProblem({ problems: PROBLEMS, attempts, weakConcepts, tier: ladder.tier });
+
+  const asked: TrainerPrompt | null = loadedCube
+    ? cubePrompt(loadedCube)
+    : problem
+      ? prompt(loadProblem(problem))
+      : null;
 
   const response: TrainerProblemResponse = {
     playerToken,
-    problem: problem ? prompt(loadProblem(problem)) : null,
+    problem: asked,
     ladder,
     focus: [
+      ...(loadedCube ? [CUBE_GUIDANCE, PHASE_GUIDANCE[loadedCube.phase]] : []),
       ...(problem ? [PHASE_GUIDANCE[problem.phase]] : []),
       ...weakConcepts.slice(0, 2).map((concept) => CONCEPT_ADVICE[concept]),
     ],
@@ -187,21 +219,17 @@ app.get('/api/trainer/next', async (c) => {
 app.post('/api/trainer/attempt', async (c) => {
   const key = await playerKey(token(c.req.header('x-player-token')));
   const body = await c.req.json<TrainerAttemptRequest>().catch(() => null);
-  if (!body || typeof body.problemId !== 'string' || !Array.isArray(body.moves)) {
-    throw new MatchError('problemId and moves are required', 400);
+  if (!body || typeof body.problemId !== 'string') {
+    throw new MatchError('problemId is required', 400);
   }
 
   // Grading happens here, from the stored answer, because the client is never
-  // sent the answer: it can only submit a play and be told what it cost.
-  const problem = loadById(body.problemId);
-  if (!problem) throw new MatchError('unknown problem', 404);
-
-  const result = gradeAttempt(problem, body.moves);
-  if (!result) throw new MatchError('that is not a legal turn with this roll', 400);
+  // sent the answer: it can only submit an answer and be told what it cost.
+  const { result, tier } = gradeRequest(body);
 
   const attempts = await loadAttempts(c.env.DB, key);
   const before = ladderState(attempts, MAX_TIER);
-  const record = await recordAttempt(c.env.DB, key, problem.tier, result);
+  const record = await recordAttempt(c.env.DB, key, tier, result);
   const ladder = ladderState([record, ...attempts], MAX_TIER);
 
   const response: TrainerAttemptResponse = { result, ladder, unlocked: ladder.tier > before.tier };

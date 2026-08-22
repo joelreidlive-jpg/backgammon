@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { TurnBuilder } from '@bg/rules';
 import { destinationsFrom, extendTurn, startTurn, undoLastMove } from '@bg/rules';
-import type { Provenance, TrainerAttemptResponse, TrainerProblemResponse } from '@bg/protocol';
+import type {
+  CubeAnswer,
+  CubeQuestion,
+  Provenance,
+  TrainerAttemptResponse,
+  TrainerProblemResponse,
+} from '@bg/protocol';
 import { Board } from './Board.js';
 import { api, loadPlayerToken, savePlayerToken } from './api.js';
 
@@ -30,12 +36,26 @@ const PROVENANCE: Readonly<Record<Provenance, { label: string; hint: string }>> 
   },
 };
 
+const ANSWER_LABELS: Readonly<Record<CubeAnswer, string>> = {
+  'no-double': 'No double',
+  double: 'Double',
+  'too-good': 'Too good to double',
+  take: 'Take',
+  drop: 'Drop',
+};
+
+const CUBE_QUESTIONS: Readonly<Record<CubeQuestion, string>> = {
+  offer: 'The cube is in the middle and it is your roll. What do you do with it?',
+  respond: 'Your opponent has doubled. Do you take or drop?',
+};
+
 export interface TrainerProps {
   onExit: () => void;
 }
 
 /**
- * The problem trainer: one position, one roll, one play, graded.
+ * The problem trainer: a position and either a roll to play or a cube to
+ * decide, graded.
  *
  * The answer is never in this component — the server sends a position and the
  * legal turns, and only says what the right play was once an attempt has been
@@ -60,7 +80,7 @@ export function Trainer({ onExit }: TrainerProps) {
       setSelected(null);
       setError(null);
       setBuilder(
-        response.problem
+        response.problem?.kind === 'checker'
           ? startTurn(response.problem.board, response.problem.player, response.problem.dice)
           : null,
       );
@@ -76,22 +96,36 @@ export function Trainer({ onExit }: TrainerProps) {
   }, [next]);
 
   const problem = data?.problem ?? null;
+  const checker = problem?.kind === 'checker' ? problem : null;
+  const cube = problem?.kind === 'cube' ? problem : null;
 
   // A complete turn is the answer, so it is submitted as soon as it is built —
   // the same interaction as playing a move in a game.
   useEffect(() => {
-    if (!problem || !builder?.complete || outcome || busy) return;
+    if (!checker || !builder?.complete || outcome || busy) return;
     const moves = builder.pending;
     setBusy(true);
     void api
-      .attempt(loadPlayerToken() ?? '', problem.id, moves)
+      .attempt(loadPlayerToken() ?? '', checker.id, moves)
       .then(setOutcome)
       .catch((cause: unknown) => {
         setError(cause instanceof Error ? cause.message : 'could not grade that play');
-        setBuilder(startTurn(problem.board, problem.player, problem.dice));
+        setBuilder(startTurn(checker.board, checker.player, checker.dice));
       })
       .finally(() => setBusy(false));
-  }, [builder, problem, outcome, busy]);
+  }, [builder, checker, outcome, busy]);
+
+  const answerCube = (answer: CubeAnswer) => {
+    if (!cube || outcome || busy) return;
+    setBusy(true);
+    void api
+      .cubeAttempt(loadPlayerToken() ?? '', cube.id, answer)
+      .then(setOutcome)
+      .catch((cause: unknown) => {
+        setError(cause instanceof Error ? cause.message : 'could not grade that answer');
+      })
+      .finally(() => setBusy(false));
+  };
 
   const sources = useMemo(() => new Set(builder?.options.map((move) => move.from) ?? []), [builder]);
   const destinations = useMemo(
@@ -172,21 +206,66 @@ export function Trainer({ onExit }: TrainerProps) {
                 </span>
               </p>
 
-              <div className="dice" aria-label="dice">
-                <span className="die">{problem.dice[0]}</span>
-                <span className="die">{problem.dice[1]}</span>
-                {!outcome && builder && builder.pending.length > 0 && (
-                  <button type="button" className="link" onClick={() => setBuilder(undoLastMove(builder))}>
-                    Undo
-                  </button>
-                )}
-              </div>
+              {checker && (
+                <div className="dice" aria-label="dice">
+                  <span className="die">{checker.dice[0]}</span>
+                  <span className="die">{checker.dice[1]}</span>
+                  {!outcome && builder && builder.pending.length > 0 && (
+                    <button type="button" className="link" onClick={() => setBuilder(undoLastMove(builder))}>
+                      Undo
+                    </button>
+                  )}
+                </div>
+              )}
 
-              {!outcome && <p className="muted">Play the best move for {problem.player}.</p>}
+              {checker && !outcome && (
+                <p className="muted">Play the best move for {checker.player}.</p>
+              )}
+
+              {cube && (
+                <>
+                  <p>{CUBE_QUESTIONS[cube.question]}</p>
+                  {!outcome && (
+                    <div className="cube-answers">
+                      {cube.answers.map((answer) => (
+                        <button
+                          key={answer}
+                          type="button"
+                          disabled={busy}
+                          onClick={() => answerCube(answer)}
+                        >
+                          {ANSWER_LABELS[answer]}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
             </>
           )}
 
-          {outcome && (
+          {outcome && outcome.result.kind === 'cube' && (
+            <div className={`attempt ${outcome.result.solved ? 'solved' : 'missed'}`}>
+              <p className="result">
+                {outcome.result.solved
+                  ? 'Correct.'
+                  : `Wrong — it costs ${outcome.result.equityLoss.toFixed(3)}.`}
+              </p>
+              <p>{outcome.result.explanation}</p>
+              {!outcome.result.solved && (
+                <p className="muted">
+                  You said <strong>{ANSWER_LABELS[outcome.result.chosen]}</strong>; the answer is{' '}
+                  <strong>{ANSWER_LABELS[outcome.result.best]}</strong>.
+                </p>
+              )}
+              {outcome.unlocked && <p className="result">Tier {outcome.ladder.tier} unlocked.</p>}
+              <button type="button" disabled={busy} onClick={() => void next()}>
+                Next problem
+              </button>
+            </div>
+          )}
+
+          {outcome && outcome.result.kind === 'checker' && (
             <div className={`attempt ${outcome.result.solved ? 'solved' : 'missed'}`}>
               <p className="result">
                 {outcome.result.exact

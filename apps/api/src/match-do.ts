@@ -34,18 +34,10 @@ import {
   reviewGame,
 } from '@bg/coach';
 import type { CreateMatchRequest, CubeCommand, HistoryEntry, MatchView } from '@bg/protocol';
+import { MatchError } from './errors.js';
 import { matchOptions } from './matchOptions.js';
 import { lastTurnBy, opponentTurnsSince } from './moveLog.js';
 import { loadProgress, recordGame } from './players.js';
-
-export class MatchError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-  ) {
-    super(message);
-  }
-}
 
 interface MatchMeta {
   readonly matchId: string;
