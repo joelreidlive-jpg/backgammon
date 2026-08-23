@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { initialBoard, makeBoard } from '@bg/rules';
+import { TOO_GOOD_POINT } from '@bg/ai';
 import { analyseCubeDecision, analyseCubeResponse, isCubeDecisionPoint } from './cube.js';
 import {
   EMPTY_PROGRESS,
@@ -22,6 +23,13 @@ const whiteWinning = makeBoard({
   white: { 3: 2, 2: 2, 1: 2 },
   black: { 24: 2, 23: 2, 22: 2, 13: 5, 12: 4 },
   off: { white: 9 },
+});
+
+/** A clear lead in a race both sides are still bearing in: a proper double. */
+const whiteAhead = makeBoard({
+  white: { 6: 3, 5: 3, 4: 3, 3: 2 },
+  black: { 20: 3, 19: 3, 13: 5 },
+  off: { white: 4, black: 4 },
 });
 
 function turn(overrides: Partial<TurnAnalysis>): TurnAnalysis {
@@ -58,14 +66,14 @@ function cube(overrides: Partial<CubeAnalysis>): CubeAnalysis {
 
 describe('cube decisions', () => {
   it('calls doubling correct when clearly winning', () => {
-    const analysis = analyseCubeDecision(whiteWinning, 'white', 'double');
+    const analysis = analyseCubeDecision(whiteAhead, 'white', 'double');
     expect(analysis.best).toBe('double');
     expect(analysis.mistake).toBe('none');
     expect(analysis.equityLoss).toBe(0);
   });
 
   it('flags holding the cube in a winning position as a missed double', () => {
-    const analysis = analyseCubeDecision(whiteWinning, 'white', 'no-double');
+    const analysis = analyseCubeDecision(whiteAhead, 'white', 'no-double');
     expect(analysis.mistake).toBe('missed-double');
     expect(analysis.equityLoss).toBeGreaterThan(0);
     expect(analysis.explanation).toMatch(/turn the cube|too good/i);
@@ -79,10 +87,25 @@ describe('cube decisions', () => {
 
   it('only counts no-doubles near the doubling window as decisions', () => {
     const opening = analyseCubeDecision(initialBoard(), 'white', 'no-double');
-    const winning = analyseCubeDecision(whiteWinning, 'white', 'no-double');
+    const winning = analyseCubeDecision(whiteAhead, 'white', 'no-double');
 
     expect(isCubeDecisionPoint(opening)).toBe(false);
     expect(isCubeDecisionPoint(winning)).toBe(true);
+  });
+
+  it('blames neither cashing nor playing on once the position is too good', () => {
+    // The engine plays on here rather than doubling, so grading the same
+    // choice as a missed double contradicts the opponent it puts you against.
+    const playOn = analyseCubeDecision(whiteWinning, 'white', 'no-double');
+    const cash = analyseCubeDecision(whiteWinning, 'white', 'double');
+
+    expect(playOn.winProbability).toBeGreaterThanOrEqual(TOO_GOOD_POINT);
+    for (const analysis of [playOn, cash]) {
+      expect(analysis.mistake).toBe('undecided');
+      expect(analysis.equityLoss).toBe(0);
+      expect(analysis.best).toBe(analysis.choice);
+    }
+    expect(progressFromGame([], [playOn]).cubeMistakes).toEqual({});
   });
 
   it('grades a hopeless take as a mistake', () => {
@@ -132,6 +155,17 @@ describe('progress', () => {
     expect(delta.byPhase.opening?.decisions).toBe(1);
     expect(delta.byConcept.makesHomeBoardPoint?.missed).toBe(1);
     expect(delta.cubeMistakes['missed-double']).toBe(1);
+  });
+
+  it('counts a match only when the game that ended also ended the match', () => {
+    expect(progressFromGame([turn({})], []).matches).toBe(0);
+    expect(progressFromGame([turn({})], [], true).matches).toBe(1);
+
+    const played = mergeProgress(
+      progressFromGame([turn({})], []),
+      progressFromGame([turn({})], [], true),
+    );
+    expect(played).toMatchObject({ games: 2, matches: 1 });
   });
 
   it('merges progress additively', () => {

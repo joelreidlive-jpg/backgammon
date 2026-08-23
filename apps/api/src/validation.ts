@@ -46,6 +46,13 @@ export const createMatchSchema = z.object({
   seat: z.enum(['white', 'black']).optional(),
 });
 
+/**
+ * A player token is 32 random bytes in hex, and nothing else is accepted: a
+ * caller who may choose their own token can pick a guessable one, and any two
+ * callers who pick the same string share one progress record.
+ */
+export const playerTokenSchema = z.string().regex(/^[0-9a-f]{64}$/, 'malformed player token');
+
 export const trainerAttemptSchema = z.object({
   problemId: z.string().min(1).max(128),
   moves: z.array(moveSchema).max(4),

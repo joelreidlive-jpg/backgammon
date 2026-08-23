@@ -38,6 +38,7 @@ import {
   hintLevelSchema,
   parse,
   parseBody,
+  playerTokenSchema,
   submitTurnSchema,
   trainerAttemptSchema,
 } from './validation.js';
@@ -52,7 +53,14 @@ function stub(env: Env, matchId: string): DurableObjectStub<MatchDO> {
 
 function token(header: string | undefined): string {
   if (!header) throw new MatchError('missing player token', 401);
-  return header;
+  const result = playerTokenSchema.safeParse(header);
+  if (!result.success) throw new MatchError('malformed player token', 401);
+  return result.data;
+}
+
+/** The token the caller holds, or a fresh identity if they hold none. */
+function tokenOrNew(header: string | undefined): string {
+  return header === undefined ? newPlayerToken() : token(header);
 }
 
 app.onError((error, c) => {
@@ -100,7 +108,7 @@ app.post('/api/matches', async (c) => {
   const body = await parseBody(createMatchSchema, c.req.raw);
   // A returning player sends the token they already hold, which is what makes
   // progress accumulate across matches rather than resetting each time.
-  const playerToken = c.req.header('x-player-token') ?? newPlayerToken();
+  const playerToken = tokenOrNew(c.req.header('x-player-token'));
   const matchId = crypto.randomUUID();
   const { view } = await stub(c.env, matchId).create(matchId, body, {
     token: playerToken,
@@ -194,7 +202,7 @@ const MAX_TIER = PROBLEMS.reduce<Tier>((max, problem) => (problem.tier > max ? p
 app.get('/api/trainer/next', async (c) => {
   // The trainer is reachable without ever having played a match, so it mints
   // the identity if the browser does not have one yet.
-  const playerToken = c.req.header('x-player-token') ?? newPlayerToken();
+  const playerToken = tokenOrNew(c.req.header('x-player-token'));
   const key = await playerKey(playerToken);
   const [progress, attempts] = await Promise.all([
     loadProgress(c.env.DB, key),
