@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { TurnBuilder } from '@bg/rules';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { Dice, TurnBuilder } from '@bg/rules';
 import { boardKey, destinationsFrom, extendTurn, startTurn, undoLastMove } from '@bg/rules';
 import type { Difficulty, GameReview, HintLevel, MatchView, ProgressResponse } from '@bg/protocol';
 import { Board } from './Board.js';
+import { NO_DICE_SPENT, spentFaces } from './Dice.js';
 import { CoachPanel } from './CoachPanel.js';
 import { NewMatchForm } from './NewMatchForm.js';
 import { ReviewPanel } from './ReviewPanel.js';
@@ -15,6 +16,14 @@ import {
   saveSession,
   type Session,
 } from './api.js';
+
+/** Long enough to read as a throw, short enough not to slow the game down. */
+const ROLL_MS = 700;
+const TUMBLE_MS = 90;
+
+function randomFace(): number {
+  return 1 + Math.floor(Math.random() * 6);
+}
 
 const LEVEL_NAMES: Readonly<Record<Difficulty, string>> = {
   beginner: 'Beginner',
@@ -34,6 +43,9 @@ export function App() {
   const [progress, setProgress] = useState<ProgressResponse | null>(null);
   const [review, setReview] = useState<GameReview | null>(null);
   const [training, setTraining] = useState(false);
+  const [rolling, setRolling] = useState<'you' | 'engine' | null>(null);
+  const [tumble, setTumble] = useState<Dice>([1, 1]);
+  const lastEnginePlay = useRef<string | null>(null);
 
   const adopt = useCallback((next: MatchView) => {
     setView(next);
@@ -117,6 +129,29 @@ export function App() {
     setBuilder(startTurn(board, view.seat, dice));
   }, [view, builder, busy]);
 
+  // The faces shown while the dice are in the air are decoration: the real
+  // roll is already in hand, and showing it immediately would give the throw
+  // away before the animation ends.
+  useEffect(() => {
+    if (!rolling) return;
+    const tumbling = setInterval(() => setTumble([randomFace(), randomFace()]), TUMBLE_MS);
+    const settle = setTimeout(() => setRolling(null), ROLL_MS);
+    return () => {
+      clearInterval(tumbling);
+      clearTimeout(settle);
+    };
+  }, [rolling]);
+
+  // The engine's roll arrives with its reply, already played, so the throw is
+  // animated when a new one appears rather than when it is made.
+  useEffect(() => {
+    const played = view?.aiPlays.at(-1);
+    const key = played ? `${view?.state.gameNumber}:${played.dice.join('-')}:${played.notation}` : null;
+    if (key === lastEnginePlay.current) return;
+    lastEnginePlay.current = key;
+    if (key !== null) setRolling('engine');
+  }, [view]);
+
   const sources = useMemo(
     () => new Set(builder?.options.map((move) => move.from) ?? []),
     [builder],
@@ -159,6 +194,14 @@ export function App() {
 
   const { state, seat } = view;
   const yourTurn = state.turn === seat;
+  const canRoll = yourTurn && state.phase === 'roll' && !busy;
+  const engineDice = view.aiPlays.at(-1)?.dice ?? null;
+  const yourDice = yourTurn && state.dice !== null ? state.dice : null;
+
+  const roll = () => {
+    setRolling('you');
+    void run(() => api.roll(session));
+  };
 
   const onSelect = (slot: number) => {
     if (!builder) return;
@@ -213,6 +256,17 @@ export function App() {
           sources={sources}
           destinations={destinations}
           onSelect={onSelect}
+          yourDice={{
+            dice: rolling === 'you' ? tumble : yourDice,
+            spent: builder && yourDice ? spentFaces(yourDice, builder.pending) : NO_DICE_SPENT,
+            rolling: rolling === 'you',
+          }}
+          opponentDice={{
+            dice: rolling === 'engine' ? tumble : engineDice,
+            spent: NO_DICE_SPENT,
+            rolling: rolling === 'engine',
+          }}
+          onRoll={canRoll ? roll : undefined}
         />
 
         <section className="controls">
@@ -220,7 +274,7 @@ export function App() {
 
           {view.aiPlays.length > 0 && (
             <p className="ai-play">
-              Opponent played <strong>{view.aiPlays.join(', ')}</strong>
+              Opponent played <strong>{view.aiPlays.map((play) => play.notation).join(', ')}</strong>
             </p>
           )}
 
@@ -266,7 +320,7 @@ export function App() {
           {state.phase === 'roll' &&
             (yourTurn ? (
               <div className="roll-controls">
-                <button type="button" disabled={busy} onClick={() => void run(() => api.roll(session))}>
+                <button type="button" disabled={busy} onClick={roll}>
                   Roll
                 </button>
                 {view.canDouble && (
@@ -283,16 +337,10 @@ export function App() {
               <p className="muted">Waiting for the engine…</p>
             ))}
 
-          {state.dice && state.phase === 'move' && (
-            <div className="dice" aria-label="dice">
-              <span className="die">{state.dice[0]}</span>
-              <span className="die">{state.dice[1]}</span>
-              {yourTurn && builder && builder.pending.length > 0 && (
-                <button type="button" className="link" onClick={() => setBuilder(undoLastMove(builder))}>
-                  Undo
-                </button>
-              )}
-            </div>
+          {yourTurn && builder && builder.pending.length > 0 && (
+            <button type="button" className="link" onClick={() => setBuilder(undoLastMove(builder))}>
+              Undo
+            </button>
           )}
 
           {yourTurn && builder?.complete && builder.pending.length === 0 && (

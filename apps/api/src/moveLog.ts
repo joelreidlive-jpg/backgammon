@@ -1,11 +1,27 @@
-import type { Player } from '@bg/rules';
+import type { Dice, Player } from '@bg/rules';
+import type { AiPlay } from '@bg/protocol';
 
 /** The subset of a `moves` row that decides what the client is shown and what a take-back undoes. */
 export interface LoggedTurn {
   readonly seq: number;
   readonly game: number;
   readonly player: string;
+  /** The roll as stored: a JSON pair. */
+  readonly dice: string;
   readonly notation: string;
+}
+
+function parseDice(stored: string): Dice {
+  const parsed: unknown = JSON.parse(stored);
+  if (
+    !Array.isArray(parsed) ||
+    parsed.length !== 2 ||
+    typeof parsed[0] !== 'number' ||
+    typeof parsed[1] !== 'number'
+  ) {
+    throw new Error('malformed dice in the move log');
+  }
+  return [parsed[0], parsed[1]];
 }
 
 /**
@@ -29,12 +45,12 @@ export function opponentTurnsSince(
   rows: readonly LoggedTurn[],
   player: Player,
   game: number,
-): string[] {
-  const plays: string[] = [];
+): AiPlay[] {
+  const plays: AiPlay[] = [];
   for (const row of rows) {
     if (row.game !== game) break;
     if (row.player === player) break;
-    plays.unshift(row.notation);
+    plays.unshift({ dice: parseDice(row.dice), notation: row.notation });
   }
   return plays;
 }

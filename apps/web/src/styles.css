@@ -259,6 +259,76 @@ main {
   text-anchor: middle;
 }
 
+/* Dice on the felt */
+
+.die-body {
+  fill: var(--white);
+  stroke: rgba(0, 0, 0, 0.35);
+  stroke-width: 1.5;
+}
+
+.dice-pair.black .die-body {
+  fill: #dedbd4;
+}
+
+.pip {
+  fill: #16181c;
+}
+
+.board-die.spent {
+  opacity: 0.35;
+}
+
+.dice-pair.clickable {
+  cursor: pointer;
+}
+
+.dice-pair.clickable .cup-body {
+  fill: rgba(255, 255, 255, 0.08);
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 6 5;
+}
+
+.dice-pair.clickable:hover .cup-body,
+.dice-pair.clickable:focus-visible .cup-body {
+  fill: rgba(76, 195, 138, 0.2);
+}
+
+.cup-label {
+  fill: var(--accent);
+  font-size: 22px;
+  font-weight: 600;
+  text-anchor: middle;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  pointer-events: none;
+}
+
+.dice-pair.rolling {
+  animation: dice-tumble 0.25s linear infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+@keyframes dice-tumble {
+  0% {
+    transform: rotate(-9deg) translateY(0);
+  }
+  50% {
+    transform: rotate(9deg) translateY(-6px);
+  }
+  100% {
+    transform: rotate(-9deg) translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dice-pair.rolling {
+    animation: none;
+  }
+}
+
 .hit-area {
   fill: transparent;
   cursor: default;

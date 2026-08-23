@@ -73,6 +73,12 @@ export interface CreateMatchRequest {
   readonly seat?: Player;
 }
 
+/** One turn the AI played, with the roll it played it with. */
+export interface AiPlay {
+  readonly dice: Dice;
+  readonly notation: string;
+}
+
 /** Everything the client is allowed to see. Never includes engine internals. */
 export interface MatchView {
   readonly matchId: string;
@@ -86,7 +92,7 @@ export interface MatchView {
   /** Set for the human's own last turn while coaching is on. */
   readonly lastAnalysis: TurnAnalysis | null;
   /** Plays the AI made since the human's last action, newest last. */
-  readonly aiPlays: readonly string[];
+  readonly aiPlays: readonly AiPlay[];
   /** Set when the human's last action was a cube decision and coaching is on. */
   readonly lastCubeAnalysis: CubeAnalysis | null;
   /** How the coach is currently calibrated for this player. */

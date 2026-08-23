@@ -9,6 +9,7 @@ import type {
   TrainerProblemResponse,
 } from '@bg/protocol';
 import { Board } from './Board.js';
+import { NO_DICE_SPENT, spentFaces } from './Dice.js';
 import { api, loadPlayerToken, savePlayerToken } from './api.js';
 
 const TIER_NAMES: readonly string[] = ['', 'Straightforward', 'Routine', 'Testing', 'Hard', 'Expert'];
@@ -188,6 +189,12 @@ export function Trainer({ onExit }: TrainerProps) {
             sources={sources}
             destinations={destinations}
             onSelect={onSelect}
+            yourDice={{
+              dice: checker?.dice ?? null,
+              spent: checker && builder ? spentFaces(checker.dice, builder.pending) : NO_DICE_SPENT,
+              rolling: false,
+            }}
+            opponentDice={{ dice: null, spent: NO_DICE_SPENT, rolling: false }}
           />
         ) : (
           <p className="muted">No problems available yet.</p>
@@ -206,16 +213,10 @@ export function Trainer({ onExit }: TrainerProps) {
                 </span>
               </p>
 
-              {checker && (
-                <div className="dice" aria-label="dice">
-                  <span className="die">{checker.dice[0]}</span>
-                  <span className="die">{checker.dice[1]}</span>
-                  {!outcome && builder && builder.pending.length > 0 && (
-                    <button type="button" className="link" onClick={() => setBuilder(undoLastMove(builder))}>
-                      Undo
-                    </button>
-                  )}
-                </div>
+              {checker && !outcome && builder && builder.pending.length > 0 && (
+                <button type="button" className="link" onClick={() => setBuilder(undoLastMove(builder))}>
+                  Undo
+                </button>
               )}
 
               {checker && !outcome && (

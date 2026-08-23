@@ -2,8 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { type LoggedTurn, lastTurnBy, opponentTurnsSince } from './moveLog.js';
 
 /** Newest first, as the queries return them. */
-function log(...turns: [number, number, string, string][]): LoggedTurn[] {
-  return turns.map(([seq, game, player, notation]) => ({ seq, game, player, notation }));
+function log(...turns: [number, number, string, string, [number, number]?][]): LoggedTurn[] {
+  return turns.map(([seq, game, player, notation, dice]) => ({
+    seq,
+    game,
+    player,
+    notation,
+    dice: JSON.stringify(dice ?? [3, 1]),
+  }));
 }
 
 describe('lastTurnBy', () => {
@@ -21,17 +27,20 @@ describe('lastTurnBy', () => {
 describe('opponentTurnsSince', () => {
   it('returns the replies since your last turn, oldest first', () => {
     const rows = log(
-      [5, 1, 'black', '13/9 13/10'],
-      [4, 1, 'black', '24/18'],
+      [5, 1, 'black', '13/9 13/10', [4, 3]],
+      [4, 1, 'black', '24/18', [6, 5]],
       [3, 1, 'white', '8/5 6/5'],
       [2, 1, 'black', '13/11'],
     );
-    expect(opponentTurnsSince(rows, 'white', 1)).toEqual(['24/18', '13/9 13/10']);
+    expect(opponentTurnsSince(rows, 'white', 1)).toEqual([
+      { dice: [6, 5], notation: '24/18' },
+      { dice: [4, 3], notation: '13/9 13/10' },
+    ]);
   });
 
   it('stops at the previous game, so its plays are not shown as a reply', () => {
-    const rows = log([4, 2, 'black', '24/18'], [3, 1, 'black', '13/9'], [2, 1, 'white', '8/5']);
-    expect(opponentTurnsSince(rows, 'white', 2)).toEqual(['24/18']);
+    const rows = log([4, 2, 'black', '24/18', [6, 5]], [3, 1, 'black', '13/9'], [2, 1, 'white', '8/5']);
+    expect(opponentTurnsSince(rows, 'white', 2)).toEqual([{ dice: [6, 5], notation: '24/18' }]);
   });
 
   it('is empty when the player has just played', () => {
