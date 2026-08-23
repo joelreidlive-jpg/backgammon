@@ -834,7 +834,7 @@ main {
     font-size: 0.85rem;
   }
 
-  .topbar .theme-picker .swatch {
+  header .theme-picker .swatch {
     width: 32px;
     height: 22px;
   }
@@ -918,7 +918,7 @@ main {
   background: var(--black);
 }
 
-.topbar .theme-picker .swatch {
+header .theme-picker .swatch {
   width: 40px;
   height: 28px;
 }
