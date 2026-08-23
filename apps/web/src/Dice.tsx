@@ -1,7 +1,8 @@
 import type { Dice, Move } from '@bg/rules';
 
-const SIZE = 54;
-const GAP = 12;
+/** Big enough to be a comfortable tap target once the board is scaled down. */
+const SIZE = 68;
+const GAP = 14;
 
 /** Pip layout in a 3x3 grid, in units of the die's width. */
 const PIPS: Readonly<Record<number, readonly (readonly [number, number])[]>> = {
@@ -43,14 +44,31 @@ interface DieProps {
   x: number;
   y: number;
   spent: boolean;
+  player: 'white' | 'black';
 }
 
-function Die({ face, x, y, spent }: DieProps) {
+function Die({ face, x, y, spent, player }: DieProps) {
   return (
     <g className={`board-die${spent ? ' spent' : ''}`} transform={`translate(${x} ${y})`}>
-      <rect className="die-body" width={SIZE} height={SIZE} rx={SIZE * 0.18} />
+      <rect
+        className="die-body"
+        width={SIZE}
+        height={SIZE}
+        rx={SIZE * 0.2}
+        fill={`url(#die-${player})`}
+        filter="url(#board-shadow)"
+      />
+      {/* A soft highlight along the top edge, as light catches a real die. */}
+      <rect
+        className="die-sheen"
+        x={SIZE * 0.1}
+        y={SIZE * 0.08}
+        width={SIZE * 0.8}
+        height={SIZE * 0.3}
+        rx={SIZE * 0.14}
+      />
       {(PIPS[face] ?? []).map(([px, py], i) => (
-        <circle key={i} className="pip" cx={px * SIZE} cy={py * SIZE} r={SIZE * 0.09} />
+        <circle key={i} className="pip" cx={px * SIZE} cy={py * SIZE} r={SIZE * 0.085} />
       ))}
     </g>
   );
@@ -155,6 +173,7 @@ export function DicePair({ dice, spent, rolling, player, x, y, onRoll, label }: 
             x={left + i * (SIZE + GAP)}
             y={y - SIZE / 2}
             spent={!rolling && spent.has(i)}
+            player={player}
           />
         ))
       )}

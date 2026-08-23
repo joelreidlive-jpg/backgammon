@@ -1,11 +1,4 @@
 :root {
-  --felt: #0f5132;
-  --frame: #4a2c17;
-  --bar: #3a2210;
-  --point-odd: #d9c3a5;
-  --point-even: #8c5a34;
-  --white: #f3ede2;
-  --black: #1c1c1c;
   --page: #14181d;
   --panel: #1e242b;
   --text: #e8e6e3;
@@ -13,6 +6,121 @@
   --accent: #4cc38a;
   --danger: #e5534b;
   color-scheme: dark;
+}
+
+/*
+ * Board palettes. Each is a complete set: case, felt, points, both checkers
+ * and both dice, chosen so the two sides stay distinguishable at a glance and
+ * the dice read against the felt they land on. `[data-board-theme]` is set on
+ * the document, and repeated on the picker swatches so each previews itself.
+ */
+:root,
+[data-board-theme='claret'] {
+  --frame: #6b4526;
+  --frame-dark: #3d2412;
+  --wood-highlight: #a9754a;
+  --hinge: #c8ccd2;
+  --felt: #ddcfba;
+  --felt-light: #f2e7d6;
+  --point-odd: #2b2320;
+  --point-odd-light: #4a3c36;
+  --point-even: #9c2b32;
+  --point-even-light: #c04a50;
+  --white: #b02a33;
+  --white-light: #e0656c;
+  --white-dark: #6e161c;
+  --black: #24211f;
+  --black-light: #55504c;
+  --black-dark: #0d0c0b;
+  --die-white: #d8d2c6;
+  --die-white-light: #fbf7ee;
+  --die-white-pip: #7a1a20;
+  --die-black: #2c2825;
+  --die-black-light: #5d554f;
+  --die-black-pip: #efe7da;
+  --slot-label: #6d5b47;
+  --stack-count: #f6ead6;
+}
+
+[data-board-theme='tangerine'] {
+  --frame: #d4692a;
+  --frame-dark: #8f3f14;
+  --wood-highlight: #f1a065;
+  --hinge: #d7d2c9;
+  --felt: #e0762f;
+  --felt-light: #f39355;
+  --point-odd: #f6f1e7;
+  --point-odd-light: #ffffff;
+  --point-even: #cfa251;
+  --point-even-light: #e8c584;
+  --white: #f7f2e8;
+  --white-light: #ffffff;
+  --white-dark: #c3b9a5;
+  --black: #d2601f;
+  --black-light: #f08a4b;
+  --black-dark: #8c3a0c;
+  --die-white: #f7f2e8;
+  --die-white-light: #ffffff;
+  --die-white-pip: #b8511a;
+  --die-black: #c65a1c;
+  --die-black-light: #ef8b4c;
+  --die-black-pip: #fff4e6;
+  --slot-label: #ffe6cd;
+  --stack-count: #fff4e6;
+}
+
+[data-board-theme='harbour'] {
+  --frame: #7a5334;
+  --frame-dark: #452c18;
+  --wood-highlight: #b0825a;
+  --hinge: #cfd4d9;
+  --felt: #dbe4e8;
+  --felt-light: #f1f5f7;
+  --point-odd: #2f3a4d;
+  --point-odd-light: #4d5a70;
+  --point-even: #b0607e;
+  --point-even-light: #cd869f;
+  --white: #c4708c;
+  --white-light: #e3a1b7;
+  --white-dark: #8b405a;
+  --black: #2c3548;
+  --black-light: #55627a;
+  --black-dark: #161d29;
+  --die-white: #f4eef0;
+  --die-white-light: #ffffff;
+  --die-white-pip: #8b405a;
+  --die-black: #33405a;
+  --die-black-light: #5d6c88;
+  --die-black-pip: #e8eef6;
+  --slot-label: #5b6675;
+  --stack-count: #f4f7fa;
+}
+
+[data-board-theme='classic'] {
+  --frame: #5a3a1e;
+  --frame-dark: #33200e;
+  --wood-highlight: #916139;
+  --hinge: #c9cdd3;
+  --felt: #0f5132;
+  --felt-light: #197a4b;
+  --point-odd: #d9c3a5;
+  --point-odd-light: #f0e2cb;
+  --point-even: #8c5a34;
+  --point-even-light: #b07b4d;
+  --white: #f3ede2;
+  --white-light: #ffffff;
+  --white-dark: #bdb3a1;
+  --black: #1c1c1c;
+  --black-light: #4d4d4d;
+  --black-dark: #000000;
+  --die-white: #f3ede2;
+  --die-white-light: #ffffff;
+  --die-white-pip: #1c1c1c;
+  --die-black: #232323;
+  --die-black-light: #565656;
+  --die-black-pip: #f3ede2;
+  --slot-label: #cfc6b8;
+  --stack-count: #ffe9c9;
 }
 
 * {
@@ -198,24 +306,40 @@ main {
 /* Board internals */
 
 .frame {
-  fill: var(--frame);
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 2;
+}
+
+.frame-bevel {
+  fill: none;
+  stroke: var(--wood-highlight);
+  stroke-width: 2;
+  opacity: 0.5;
 }
 
 .felt {
-  fill: var(--felt);
+  stroke: rgba(0, 0, 0, 0.35);
+  stroke-width: 2;
 }
 
-.bar,
+.bar {
+  stroke: rgba(0, 0, 0, 0.4);
+  stroke-width: 2;
+}
+
+.hinge {
+  fill: var(--hinge);
+  stroke: rgba(0, 0, 0, 0.5);
+}
+
 .tray {
-  fill: var(--bar);
+  stroke: rgba(0, 0, 0, 0.4);
+  stroke-width: 2;
 }
 
-.point.odd {
-  fill: var(--point-odd);
-}
-
-.point.even {
-  fill: var(--point-even);
+.point {
+  stroke: rgba(0, 0, 0, 0.25);
+  stroke-width: 1;
 }
 
 .point-target {
@@ -223,16 +347,98 @@ main {
   opacity: 0.45;
 }
 
-.checkers.white circle {
-  fill: var(--white);
-  stroke: #b9b0a0;
+/* Gradient stops, so a theme is a palette rather than a second board. */
+.wood-light {
+  stop-color: var(--wood-highlight);
+}
+.wood-mid {
+  stop-color: var(--frame);
+}
+.wood-dark {
+  stop-color: var(--frame-dark);
+}
+.felt-lit {
+  stop-color: var(--felt-light);
+}
+.felt-shade {
+  stop-color: var(--felt);
+}
+.point-odd-light {
+  stop-color: var(--point-odd-light);
+}
+.point-odd-dark {
+  stop-color: var(--point-odd);
+}
+.point-even-light {
+  stop-color: var(--point-even-light);
+}
+.point-even-dark {
+  stop-color: var(--point-even);
+}
+.checker-white-light {
+  stop-color: var(--white-light);
+}
+.checker-white-mid {
+  stop-color: var(--white);
+}
+.checker-white-dark {
+  stop-color: var(--white-dark);
+}
+.checker-black-light {
+  stop-color: var(--black-light);
+}
+.checker-black-mid {
+  stop-color: var(--black);
+}
+.checker-black-dark {
+  stop-color: var(--black-dark);
+}
+.die-white-light {
+  stop-color: var(--die-white-light);
+}
+.die-white-dark {
+  stop-color: var(--die-white);
+}
+.die-black-light {
+  stop-color: var(--die-black-light);
+}
+.die-black-dark {
+  stop-color: var(--die-black);
+}
+
+.checker-shadow {
+  fill: rgba(0, 0, 0, 0.35);
+}
+
+.checkers.white .checker-face {
+  stroke: var(--white-dark);
+}
+
+.checkers.black .checker-face {
+  stroke: var(--black-dark);
+}
+
+.checker-face {
+  stroke-width: 1.5;
+}
+
+/* The moulded ring and dished centre of a real checker. */
+.checker-rim {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.28);
   stroke-width: 2;
 }
 
-.checkers.black circle {
-  fill: var(--black);
-  stroke: #555;
-  stroke-width: 2;
+.checkers.black .checker-rim {
+  stroke: rgba(255, 255, 255, 0.14);
+}
+
+.checker-inset {
+  fill: rgba(0, 0, 0, 0.14);
+}
+
+.checkers.white .checker-inset {
+  fill: rgba(0, 0, 0, 0.08);
 }
 
 .slabs.white rect {
@@ -240,21 +446,21 @@ main {
 }
 
 .slabs.black rect {
-  fill: #4a4a4a;
+  fill: var(--black-light);
 }
 
 .stack-count {
-  fill: #d02b2b;
+  fill: var(--stack-count);
   font-size: 26px;
   font-weight: 700;
   text-anchor: middle;
   paint-order: stroke;
-  stroke: #fff;
+  stroke: rgba(0, 0, 0, 0.6);
   stroke-width: 4;
 }
 
 .slot-label {
-  fill: #cfc6b8;
+  fill: var(--slot-label);
   font-size: 15px;
   text-anchor: middle;
 }
@@ -262,24 +468,33 @@ main {
 /* Dice on the felt */
 
 .die-body {
-  fill: var(--white);
   stroke: rgba(0, 0, 0, 0.35);
   stroke-width: 1.5;
 }
 
-.dice-pair.black .die-body {
-  fill: #dedbd4;
+.die-sheen {
+  fill: rgba(255, 255, 255, 0.22);
 }
 
-.pip {
-  fill: #16181c;
+.dice-pair.white .pip {
+  fill: var(--die-white-pip);
+}
+
+.dice-pair.black .pip {
+  fill: var(--die-black-pip);
 }
 
 .board-die.spent {
-  opacity: 0.35;
+  opacity: 0.32;
+}
+
+/* Settled dice must not swallow clicks meant for the points beneath them. */
+.dice-pair {
+  pointer-events: none;
 }
 
 .dice-pair.clickable {
+  pointer-events: auto;
   cursor: pointer;
 }
 
@@ -287,21 +502,21 @@ main {
   fill: rgba(255, 255, 255, 0.08);
   stroke: var(--accent);
   stroke-width: 2;
-  stroke-dasharray: 6 5;
+  stroke-dasharray: 7 6;
 }
 
 .dice-pair.clickable:hover .cup-body,
 .dice-pair.clickable:focus-visible .cup-body {
-  fill: rgba(76, 195, 138, 0.2);
+  fill: rgba(255, 255, 255, 0.18);
 }
 
 .cup-label {
   fill: var(--accent);
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 600;
   text-anchor: middle;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.09em;
   pointer-events: none;
 }
 
@@ -316,7 +531,7 @@ main {
     transform: rotate(-9deg) translateY(0);
   }
   50% {
-    transform: rotate(9deg) translateY(-6px);
+    transform: rotate(9deg) translateY(-8px);
   }
   100% {
     transform: rotate(-9deg) translateY(0);
@@ -649,4 +864,56 @@ main {
   .setup {
     margin: 1.25rem auto;
   }
+}
+
+/* Board theme picker */
+
+.theme-picker {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.swatch {
+  width: 54px;
+  height: 38px;
+  padding: 3px;
+  border: 2px solid transparent;
+  border-radius: 7px;
+  background: var(--frame);
+  cursor: pointer;
+}
+
+.swatch.chosen {
+  border-color: var(--accent);
+}
+
+.swatch-felt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--felt);
+}
+
+.swatch-checker {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.swatch-checker.white {
+  background: var(--white);
+}
+
+.swatch-checker.black {
+  background: var(--black);
+}
+
+.topbar .theme-picker .swatch {
+  width: 40px;
+  height: 28px;
 }
