@@ -491,9 +491,9 @@ export class MatchDO extends DurableObject<Env> {
     // the opponent's reply in the next one.
     const rows = this.sql
       .exec<
-        Pick<MoveRow, 'seq' | 'game' | 'player' | 'notation'>
+        Pick<MoveRow, 'seq' | 'game' | 'player' | 'dice' | 'notation'>
       >(
-        'SELECT seq, game, player, notation FROM moves WHERE game = ? ORDER BY seq DESC LIMIT 8',
+        'SELECT seq, game, player, dice, notation FROM moves WHERE game = ? ORDER BY seq DESC LIMIT 8',
         state.gameNumber,
       )
       .toArray();

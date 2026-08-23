@@ -1,5 +1,6 @@
-import type { Board as BoardModel, Player } from '@bg/rules';
+import type { Board as BoardModel, Dice, Player } from '@bg/rules';
 import { barSlot, checkersAt, offSlot } from '@bg/rules';
+import { DicePair } from './Dice.js';
 
 const WIDTH = 1120;
 const HEIGHT = 640;
@@ -13,6 +14,8 @@ const MAX_VISIBLE = 5;
 const BAR_X = MARGIN + 6 * POINT_WIDTH;
 const TRAY_X = MARGIN + FELT_WIDTH + 10;
 const TRAY_WIDTH = WIDTH - TRAY_X - MARGIN;
+/** The middle of the outer board, where dice are thrown. */
+const DICE_X = (BAR_X + BAR_WIDTH + MARGIN + FELT_WIDTH) / 2;
 
 /**
  * Standard layout seen from White: 1-12 along the bottom right-to-left, 13-24
@@ -78,6 +81,14 @@ function OffTray({ count, player, baseY, direction }: Omit<StackProps, 'centreX'
   );
 }
 
+/** One side's dice as the board should draw them. */
+export interface DiceView {
+  readonly dice: Dice | null;
+  /** Indices of the drawn faces already played. */
+  readonly spent: ReadonlySet<number>;
+  readonly rolling: boolean;
+}
+
 export interface BoardProps {
   board: BoardModel;
   seat: Player;
@@ -87,9 +98,23 @@ export interface BoardProps {
   /** Slots the selected checker may move to. */
   destinations: ReadonlySet<number>;
   onSelect: (slot: number) => void;
+  yourDice: DiceView;
+  opponentDice: DiceView;
+  /** Set when clicking your dice is what rolls them. */
+  onRoll?: () => void;
 }
 
-export function Board({ board, seat, selected, sources, destinations, onSelect }: BoardProps) {
+export function Board({
+  board,
+  seat,
+  selected,
+  sources,
+  destinations,
+  onSelect,
+  yourDice,
+  opponentDice,
+  onRoll,
+}: BoardProps) {
   const bar = barSlot(seat);
   const off = offSlot(seat);
 
@@ -169,6 +194,23 @@ export function Board({ board, seat, selected, sources, destinations, onSelect }
         width={BAR_WIDTH}
         height={HEIGHT - 2 * MARGIN}
         onClick={() => onSelect(bar)}
+      />
+
+      {/* Dice sit in the outer board on each side, the roller's own half. */}
+      <DicePair
+        {...opponentDice}
+        player={seat === 'white' ? 'black' : 'white'}
+        x={DICE_X}
+        y={HEIGHT / 2 - 70}
+        label="the engine’s dice"
+      />
+      <DicePair
+        {...yourDice}
+        player={seat}
+        x={DICE_X}
+        y={HEIGHT / 2 + 70}
+        onRoll={onRoll}
+        label={onRoll ? 'roll the dice' : 'your dice'}
       />
 
       <OffTray count={board.off.black} player="black" baseY={MARGIN + 8} direction={1} />
