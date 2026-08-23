@@ -34,9 +34,9 @@ import {
   reviewGame,
 } from '@bg/coach';
 import type { CreateMatchRequest, CubeCommand, HistoryEntry, MatchView } from '@bg/protocol';
+import { MatchError } from './errors.js';
 import { matchOptions } from './matchOptions.js';
 import { lastTurnBy, opponentTurnsSince } from './moveLog.js';
-import { MatchError } from './errors.js';
 import { loadProgress, recordGame } from './players.js';
 
 interface MatchMeta {

@@ -172,6 +172,18 @@ main {
   gap: 0.6rem;
 }
 
+.cube-answers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.cube-answers button {
+  flex: 1 1 auto;
+  /* Comfortably tappable on a phone, where the trainer is mostly used. */
+  min-height: 2.75rem;
+}
+
 .die {
   display: inline-grid;
   place-items: center;

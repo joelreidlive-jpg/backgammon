@@ -89,6 +89,7 @@ export function load(problem: Problem): LoadedProblem {
  * submitted, or the trainer is a lookup table rather than an exercise.
  */
 export interface ProblemPrompt {
+  readonly kind: 'checker';
   readonly id: string;
   readonly tier: Tier;
   readonly provenance: Provenance;
@@ -101,6 +102,7 @@ export interface ProblemPrompt {
 
 export function prompt(problem: LoadedProblem): ProblemPrompt {
   return {
+    kind: 'checker',
     id: problem.id,
     tier: problem.tier,
     provenance: problem.provenance,

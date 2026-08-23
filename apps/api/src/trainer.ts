@@ -1,4 +1,15 @@
-import type { AttemptRecord, AttemptResult, Tier } from '@bg/trainer';
+import type { AttemptRecord, Tier } from '@bg/trainer';
+
+/**
+ * The part of a graded attempt the history keeps. Checker and cube attempts
+ * share one table because the ladder measures the player, not the exercise:
+ * getting cube decisions wrong should hold you at a tier just as surely.
+ */
+export interface RecordableAttempt {
+  readonly problemId: string;
+  readonly solved: boolean;
+  readonly equityLoss: number;
+}
 
 interface AttemptRow {
   problem_id: string;
@@ -43,7 +54,7 @@ export async function recordAttempt(
   db: D1Database,
   key: string,
   tier: Tier,
-  result: AttemptResult,
+  result: RecordableAttempt,
 ): Promise<AttemptRecord> {
   const at = Date.now();
   await db

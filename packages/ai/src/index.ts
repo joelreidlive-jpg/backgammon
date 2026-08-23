@@ -6,4 +6,5 @@ export * from './rollout.js';
 export * from './calibration.js';
 export * from './difficulty.js';
 export * from './cubeDecision.js';
+export * from './cubeful.js';
 export * from './engine.js';

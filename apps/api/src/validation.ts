@@ -53,10 +53,20 @@ export const createMatchSchema = z.object({
  */
 export const playerTokenSchema = z.string().regex(/^[0-9a-f]{64}$/, 'malformed player token');
 
-export const trainerAttemptSchema = z.object({
-  problemId: z.string().min(1).max(128),
-  moves: z.array(moveSchema).max(4),
-});
+const problemIdSchema = z.string().min(1).max(128);
+
+export const trainerAttemptSchema = z.union([
+  z.object({
+    kind: z.literal('cube'),
+    problemId: problemIdSchema,
+    answer: z.enum(['no-double', 'double', 'too-good', 'take', 'drop']),
+  }),
+  z.object({
+    kind: z.literal('checker').optional(),
+    problemId: problemIdSchema,
+    moves: z.array(moveSchema).max(4),
+  }),
+]);
 
 /**
  * Compile-time guards that the schemas still describe the shared wire types.
