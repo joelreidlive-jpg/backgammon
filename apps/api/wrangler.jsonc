@@ -10,8 +10,35 @@
   },
   // A 2-ply search needs far more than the 10 ms of CPU the free plan allows,
   // so the Workers Paid plan is a functional requirement, not a scaling one.
+  // A turn costs tens to hundreds of milliseconds, so 10 s is a generous
+  // ceiling that still caps what one pathological request can spend.
   "limits": {
-    "cpu_ms": 60000
+    "cpu_ms": 10000
+  },
+  // Rate limiting: every turn runs a search, so an unthrottled public endpoint
+  // is a cost-amplification vector as much as a denial-of-service one. Keyed by
+  // player token, falling back to IP.
+  "unsafe": {
+    "bindings": [
+      {
+        "name": "MATCH_CREATE_LIMIT",
+        "type": "ratelimit",
+        "namespace_id": "1001",
+        "simple": { "limit": 20, "period": 60 }
+      },
+      {
+        "name": "MATCH_LIMIT",
+        "type": "ratelimit",
+        "namespace_id": "1002",
+        "simple": { "limit": 120, "period": 60 }
+      },
+      {
+        "name": "TRAINER_LIMIT",
+        "type": "ratelimit",
+        "namespace_id": "1003",
+        "simple": { "limit": 120, "period": 60 }
+      }
+    ]
   },
   "durable_objects": {
     "bindings": [

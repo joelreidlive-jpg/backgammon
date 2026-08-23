@@ -36,6 +36,7 @@ import type {
 } from '@bg/protocol';
 import { loadProgress, newPlayerToken, playerKey, recentGames } from './players.js';
 import { gradeRequest } from './grading.js';
+import { rateLimit } from './rate-limit.js';
 import { loadAttempts, recordAttempt } from './trainer.js';
 
 export { MatchDO } from './match-do.js';
@@ -61,6 +62,13 @@ app.onError((error, c) => {
   const status = /not found/.test(message) ? 404 : /not your|disabled/.test(message) ? 403 : 400;
   return c.json({ error: message }, status);
 });
+
+// Creating a match is cheap but unauthenticated, so it is the endpoint an
+// abuser would use to mint unlimited identities; the per-turn limit is looser
+// because a real game is a steady trickle of requests.
+app.use('/api/matches', rateLimit((env) => env.MATCH_CREATE_LIMIT, 60));
+app.use('/api/matches/*', rateLimit((env) => env.MATCH_LIMIT, 60));
+app.use('/api/trainer/*', rateLimit((env) => env.TRAINER_LIMIT, 60));
 
 app.post('/api/matches', async (c) => {
   const body = await c.req.json<CreateMatchRequest>().catch(() => ({}) as CreateMatchRequest);
