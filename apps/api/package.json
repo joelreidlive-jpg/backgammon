@@ -13,10 +13,11 @@
   "dependencies": {
     "@bg/ai": "workspace:*",
     "@bg/coach": "workspace:*",
-    "@bg/rules": "workspace:*",
-    "hono": "^4.6.14",
     "@bg/protocol": "workspace:*",
-    "@bg/trainer": "workspace:*"
+    "@bg/rules": "workspace:*",
+    "@bg/trainer": "workspace:*",
+    "hono": "^4.6.14",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241224.0",
