@@ -50,6 +50,7 @@ export const CONCEPT_ADVICE: Readonly<Record<Concept, string>> = {
 
 export const CUBE_ADVICE: Readonly<Record<CubeMistake, string>> = {
   none: '',
+  undecided: '',
   'missed-double':
     'You hold the cube too long. If you are clearly ahead and the position is volatile, double — a cube you never turn is a cube that never earns anything.',
   'premature-double':

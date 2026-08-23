@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { MatchError } from './errors.js';
+import { newPlayerToken } from './players.js';
 import {
   createMatchSchema,
   cubeCommandSchema,
   hintLevelSchema,
   parse,
   parseBody,
+  playerTokenSchema,
   submitTurnSchema,
   trainerAttemptSchema,
 } from './validation.js';
@@ -61,6 +63,13 @@ describe('request validation', () => {
   it('requires a problem id on a trainer attempt', () => {
     expect(() => parse(trainerAttemptSchema, { moves: [] })).toThrow(MatchError);
     expect(() => parse(trainerAttemptSchema, { problemId: '', moves: [] })).toThrow(MatchError);
+  });
+
+  it('accepts only a minted player token, not one the caller invented', () => {
+    expect(parse(playerTokenSchema, newPlayerToken())).toHaveLength(64);
+    for (const forged of ['', 'joel', 'A'.repeat(64), '0'.repeat(63), '0'.repeat(65)]) {
+      expect(() => parse(playerTokenSchema, forged)).toThrow(MatchError);
+    }
   });
 
   it('answers 400 rather than crashing on a malformed body', async () => {

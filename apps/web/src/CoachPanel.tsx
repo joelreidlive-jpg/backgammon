@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { CoachingPolicy, CubeAnalysis, Hint, HintLevel, TurnAnalysis } from '@bg/protocol';
 
 const HINT_LABELS: Readonly<Record<HintLevel, string>> = {
@@ -29,6 +29,8 @@ export interface CoachPanelProps {
   analysis: TurnAnalysis | null;
   cubeAnalysis: CubeAnalysis | null;
   policy: CoachingPolicy;
+  /** Changes whenever the position on the board does. */
+  position: string;
   onHint: (level: HintLevel) => Promise<Hint>;
   onTakeback: () => void;
 }
@@ -40,11 +42,21 @@ export function CoachPanel({
   analysis,
   cubeAnalysis,
   policy,
+  position,
   onHint,
   onTakeback,
 }: CoachPanelProps) {
   const [hint, setHint] = useState<Hint | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // A hint describes one position. Keeping it on screen after the board has
+  // moved on shows advice for a position that no longer exists, and would let
+  // the next request start at the level the last one finished on.
+  useEffect(() => {
+    setHint(null);
+    setFailure(null);
+  }, [position]);
 
   if (!enabled) {
     return (
@@ -57,8 +69,11 @@ export function CoachPanel({
 
   const ask = async (level: HintLevel) => {
     setBusy(true);
+    setFailure(null);
     try {
       setHint(await onHint(level));
+    } catch (cause) {
+      setFailure(cause instanceof Error ? cause.message : 'could not fetch a hint');
     } finally {
       setBusy(false);
     }
@@ -80,7 +95,7 @@ export function CoachPanel({
         <span className={`tier ${policy.tier}`}>{policy.tier}</span>
       </div>
 
-      {cubeAnalysis && cubeAnalysis.mistake !== 'none' && (
+      {cubeAnalysis && cubeAnalysis.mistake !== 'none' && cubeAnalysis.mistake !== 'undecided' && (
         <div className={`analysis ${cubeAnalysis.severity}`}>
           <div className="analysis-head">
             <span className="severity">cube · {cubeAnalysis.severity}</span>
@@ -124,6 +139,7 @@ export function CoachPanel({
         <button type="button" disabled={!canAsk || busy} onClick={() => void ask(nextLevel)}>
           {HINT_LABELS[nextLevel]}
         </button>
+        {failure && <p className="error">{failure}</p>}
         {hint && (
           <div className="hint">
             <p>{hint.message}</p>
