@@ -36,16 +36,8 @@ import {
 import type { CreateMatchRequest, CubeCommand, HistoryEntry, MatchView } from '@bg/protocol';
 import { matchOptions } from './matchOptions.js';
 import { lastTurnBy, opponentTurnsSince } from './moveLog.js';
+import { MatchError } from './errors.js';
 import { loadProgress, recordGame } from './players.js';
-
-export class MatchError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-  ) {
-    super(message);
-  }
-}
 
 interface MatchMeta {
   readonly matchId: string;

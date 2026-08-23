@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import type { Move } from '@bg/rules';
+import { secureHeaders } from 'hono/secure-headers';
 import {
   CONCEPT_ADVICE,
   PHASE_GUIDANCE,
@@ -21,25 +21,30 @@ import {
   prompt,
   selectProblem,
 } from '@bg/trainer';
-import { MatchError } from './match-do.js';
+import { MatchError, decodeError } from './errors.js';
 import type { MatchDO } from './match-do.js';
 import type {
-  CreateMatchRequest,
-  CubeCommand,
   ProgressResponse,
-  TrainerAttemptRequest,
   TrainerAttemptResponse,
   TrainerProblemResponse,
 } from '@bg/protocol';
+import { logFailure, observability } from './observability.js';
 import { loadProgress, newPlayerToken, playerKey, recentGames } from './players.js';
 import { rateLimit } from './rate-limit.js';
 import { loadAttempts, recordAttempt } from './trainer.js';
+import {
+  createMatchSchema,
+  cubeCommandSchema,
+  hintLevelSchema,
+  parse,
+  parseBody,
+  submitTurnSchema,
+  trainerAttemptSchema,
+} from './validation.js';
 
 export { MatchDO } from './match-do.js';
 
-const app = new Hono<{ Bindings: Env }>();
-
-const CUBE_COMMANDS: readonly CubeCommand[] = ['double', 'take', 'drop'];
+const app = new Hono<{ Bindings: Env; Variables: { requestId: string } }>();
 
 function stub(env: Env, matchId: string): DurableObjectStub<MatchDO> {
   return env.MATCH.get(env.MATCH.idFromName(matchId));
@@ -51,13 +56,38 @@ function token(header: string | undefined): string {
 }
 
 app.onError((error, c) => {
-  if (error instanceof MatchError) return c.json({ error: error.message }, error.status as 400);
-  // Durable Object RPC rethrows on the client side as a plain Error, so match
-  // the status back out of the message rather than losing it.
-  const message = error.message || 'internal error';
-  const status = /not found/.test(message) ? 404 : /not your|disabled/.test(message) ? 403 : 400;
-  return c.json({ error: message }, status);
+  logFailure(c.get('requestId') ?? 'unknown', error);
+  const { code, status, message } = decodeError(error);
+  return c.json({ error: message, code }, status as 400);
 });
+
+app.use('*', observability());
+
+// The app loads no third-party script, style or frame, so the policy can be as
+// tight as the browser allows. `unsafe-inline` remains on styles only: React
+// sets style attributes on the board's SVG.
+app.use(
+  '*',
+  secureHeaders({
+    contentSecurityPolicy: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:'],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'none'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'none'"],
+    },
+    strictTransportSecurity: 'max-age=31536000; includeSubDomains',
+    referrerPolicy: 'strict-origin-when-cross-origin',
+    xFrameOptions: 'DENY',
+    xContentTypeOptions: 'nosniff',
+    permissionsPolicy: { camera: [], microphone: [], geolocation: [], payment: [] },
+  }),
+);
 
 // Creating a match is cheap but unauthenticated, so it is the endpoint an
 // abuser would use to mint unlimited identities; the per-turn limit is looser
@@ -67,7 +97,7 @@ app.use('/api/matches/*', rateLimit((env) => env.MATCH_LIMIT, 60));
 app.use('/api/trainer/*', rateLimit((env) => env.TRAINER_LIMIT, 60));
 
 app.post('/api/matches', async (c) => {
-  const body = await c.req.json<CreateMatchRequest>().catch(() => ({}) as CreateMatchRequest);
+  const body = await parseBody(createMatchSchema, c.req.raw);
   // A returning player sends the token they already hold, which is what makes
   // progress accumulate across matches rather than resetting each time.
   const playerToken = c.req.header('x-player-token') ?? newPlayerToken();
@@ -114,15 +144,13 @@ app.post('/api/matches/:id/roll', async (c) => {
 });
 
 app.post('/api/matches/:id/turn', async (c) => {
-  const { moves } = await c.req.json<{ moves: Move[] }>();
-  if (!Array.isArray(moves)) throw new MatchError('moves must be an array', 400);
+  const { moves } = await parseBody(submitTurnSchema, c.req.raw);
   const view = await stub(c.env, c.req.param('id')).submitTurn(token(c.req.header('x-player-token')), moves);
   return c.json(view);
 });
 
 app.post('/api/matches/:id/cube', async (c) => {
-  const { action } = await c.req.json<{ action: CubeCommand }>();
-  if (!CUBE_COMMANDS.includes(action)) throw new MatchError('unknown cube action', 400);
+  const { action } = await parseBody(cubeCommandSchema, c.req.raw);
   const view = await stub(c.env, c.req.param('id')).cube(token(c.req.header('x-player-token')), action);
   return c.json(view);
 });
@@ -138,8 +166,7 @@ app.post('/api/matches/:id/takeback', async (c) => {
 });
 
 app.get('/api/matches/:id/hint', async (c) => {
-  const level = Number(c.req.query('level') ?? '1');
-  if (![1, 2, 3, 4].includes(level)) throw new MatchError('level must be 1-4', 400);
+  const level = parse(hintLevelSchema, c.req.query('level') ?? '1');
   const hint = await stub(c.env, c.req.param('id')).hint(
     token(c.req.header('x-player-token')),
     level as HintLevel,
@@ -194,10 +221,7 @@ app.get('/api/trainer/next', async (c) => {
 
 app.post('/api/trainer/attempt', async (c) => {
   const key = await playerKey(token(c.req.header('x-player-token')));
-  const body = await c.req.json<TrainerAttemptRequest>().catch(() => null);
-  if (!body || typeof body.problemId !== 'string' || !Array.isArray(body.moves)) {
-    throw new MatchError('problemId and moves are required', 400);
-  }
+  const body = await parseBody(trainerAttemptSchema, c.req.raw);
 
   // Grading happens here, from the stored answer, because the client is never
   // sent the answer: it can only submit a play and be told what it cost.
@@ -216,7 +240,7 @@ app.post('/api/trainer/attempt', async (c) => {
   return c.json(response);
 });
 
-app.all('/api/*', (c) => c.json({ error: 'not found' }, 404));
+app.all('/api/*', (c) => c.json({ error: 'not found', code: 'not_found' }, 404));
 
 // Everything else is the single-page app, served from the same Worker so there
 // is no CORS surface and one deploy ships both halves.

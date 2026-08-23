@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import type { Move } from '@bg/rules';
-import { DIFFICULTY_PROFILES } from '@bg/ai';
+import type { Difficulty } from '@bg/ai';
 import type { CreateMatchRequest, CubeCommand, TrainerAttemptRequest } from '@bg/protocol';
-import { MatchError } from './match-do.js';
+import { MatchError } from './errors.js';
 
 /**
  * Runtime validation for everything that arrives over the network.
@@ -30,10 +30,17 @@ export const cubeCommandSchema = z.object({
   action: z.enum(['double', 'take', 'drop']),
 });
 
-export const hintLevelSchema = z.coerce.number().int().min(1).max(4);
+export const hintLevelSchema = z.coerce
+  .number({ error: 'level must be 1-4' })
+  .int('level must be 1-4')
+  .min(1, 'level must be 1-4')
+  .max(4, 'level must be 1-4');
+
+const DIFFICULTIES = ['beginner', 'casual', 'intermediate', 'expert', 'advanced'] as const satisfies
+  readonly Difficulty[];
 
 export const createMatchSchema = z.object({
-  aiLevel: z.enum(Object.keys(DIFFICULTY_PROFILES) as [string, ...string[]]).optional(),
+  aiLevel: z.enum(DIFFICULTIES).optional(),
   matchLength: z.number().int().optional(),
   coaching: z.boolean().optional(),
   seat: z.enum(['white', 'black']).optional(),
@@ -48,12 +55,10 @@ export const trainerAttemptSchema = z.object({
  * Compile-time guards that the schemas still describe the shared wire types.
  * If `@bg/protocol` changes and a schema does not, one of these stops building.
  */
-type Assert<T extends true> = T;
-type Extends<A, B> = A extends B ? true : false;
-export type _MoveMatches = Assert<Extends<z.infer<typeof moveSchema>, Move>>;
-export type _CreateMatchMatches = Assert<Extends<z.infer<typeof createMatchSchema>, CreateMatchRequest>>;
-export type _CubeMatches = Assert<Extends<z.infer<typeof cubeCommandSchema>['action'], CubeCommand>>;
-export type _AttemptMatches = Assert<Extends<z.infer<typeof trainerAttemptSchema>, TrainerAttemptRequest>>;
+export const asMove = (value: z.infer<typeof moveSchema>): Move => value;
+export const asCreateMatch = (value: z.infer<typeof createMatchSchema>): CreateMatchRequest => value;
+export const asCubeCommand = (value: z.infer<typeof cubeCommandSchema>['action']): CubeCommand => value;
+export const asAttempt = (value: z.infer<typeof trainerAttemptSchema>): TrainerAttemptRequest => value;
 
 /** First issue only: enough for a client to fix the call, nothing about internals. */
 function describe(error: z.ZodError): string {
