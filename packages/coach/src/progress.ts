@@ -1,7 +1,7 @@
 import type { Difficulty } from '@bg/ai';
 import type { TurnAnalysis } from './analyse.js';
 import type { Concept } from './concepts.js';
-import type { CubeAnalysis, CubeMistake } from './cube.js';
+import { type CubeAnalysis, type CubeMistake, isCubeMistake } from './cube.js';
 import type { HintLevel } from './hints.js';
 import type { GamePhase } from './phase.js';
 
@@ -149,10 +149,14 @@ function addTally(a: Tally | undefined, b: Tally): Tally {
   };
 }
 
-/** Turn one game's decisions into a progress delta. */
+/**
+ * Turn one game's decisions into a progress delta. `matchCompleted` is true
+ * when this game also ended the match, which is what `matches` counts.
+ */
 export function progressFromGame(
   turns: readonly TurnAnalysis[],
   cubes: readonly CubeAnalysis[],
+  matchCompleted = false,
 ): PlayerProgress {
   const byPhase: Partial<Record<GamePhase, Tally>> = {};
   const byConcept: Partial<Record<Concept, ConceptTally>> = {};
@@ -179,14 +183,14 @@ export function progressFromGame(
       decisions: 1,
       equityLoss: decision.equityLoss,
     });
-    if (decision.mistake !== 'none') {
+    if (isCubeMistake(decision.mistake)) {
       cubeMistakes[decision.mistake] = (cubeMistakes[decision.mistake] ?? 0) + 1;
     }
   }
 
   return {
     games: 1,
-    matches: 0,
+    matches: matchCompleted ? 1 : 0,
     checker,
     cube,
     byPhase,

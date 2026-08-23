@@ -1,6 +1,6 @@
 import type { TurnAnalysis } from './analyse.js';
 import type { Concept } from './concepts.js';
-import type { CubeAnalysis, CubeMistake } from './cube.js';
+import { type CubeAnalysis, type CubeMistake, isCubeMistake } from './cube.js';
 import type { GamePhase } from './phase.js';
 import {
   type PlayerProgress,
@@ -92,8 +92,9 @@ export function reviewGame(
   turns: readonly TurnAnalysis[],
   cubes: readonly CubeAnalysis[],
   history: PlayerProgress,
+  matchCompleted = false,
 ): GameReview {
-  const delta = progressFromGame(turns, cubes);
+  const delta = progressFromGame(turns, cubes, matchCompleted);
   const progress = mergeProgress(history, delta);
 
   const combined: Tally = {
@@ -125,7 +126,7 @@ export function reviewGame(
     }));
 
   const cubeAdvice = Object.keys(delta.cubeMistakes)
-    .filter((mistake): mistake is CubeMistake => mistake !== 'none')
+    .filter((mistake): mistake is CubeMistake => isCubeMistake(mistake as CubeMistake))
     .map((mistake) => CUBE_ADVICE[mistake])
     .filter((advice) => advice.length > 0);
 

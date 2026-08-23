@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { TurnBuilder } from '@bg/rules';
-import { destinationsFrom, extendTurn, startTurn, undoLastMove } from '@bg/rules';
+import { boardKey, destinationsFrom, extendTurn, startTurn, undoLastMove } from '@bg/rules';
 import type { Difficulty, GameReview, HintLevel, MatchView, ProgressResponse } from '@bg/protocol';
 import { Board } from './Board.js';
 import { CoachPanel } from './CoachPanel.js';
@@ -106,6 +106,16 @@ export function App() {
     setBuilder(null);
     void run(() => api.submitTurn(session, moves));
   }, [builder, session, busy, run]);
+
+  // A submission that fails leaves the turn cleared but the position unplayed,
+  // which would otherwise strand the player with no checkers to move. Rebuild
+  // the turn from the position the server still believes we are in.
+  useEffect(() => {
+    if (!view || builder || busy) return;
+    const { board, dice, phase, turn } = view.state;
+    if (phase !== 'move' || dice === null || turn !== view.seat) return;
+    setBuilder(startTurn(board, view.seat, dice));
+  }, [view, builder, busy]);
 
   const sources = useMemo(
     () => new Set(builder?.options.map((move) => move.from) ?? []),
@@ -302,6 +312,7 @@ export function App() {
           analysis={view.lastAnalysis}
           cubeAnalysis={view.lastCubeAnalysis}
           policy={view.policy}
+          position={`${state.gameNumber}:${boardKey(state.board)}:${state.dice?.join('-') ?? ''}`}
           onHint={(level: HintLevel) => api.hint(session, level)}
           onTakeback={() => void run(() => api.takeback(session))}
         />

@@ -2,6 +2,7 @@ import { type Board, type Player, opponent } from '@bg/rules';
 import {
   DOUBLE_POINT,
   TAKE_POINT,
+  TOO_GOOD_POINT,
   equityAtWinProbability,
   expectedEquity,
   winProbabilityFromScore,
@@ -17,8 +18,15 @@ export type CubeMistake =
   | 'missed-double'
   | 'premature-double'
   | 'too-good-to-double'
+  /** Cash or play on, with no gammon estimate to separate them. */
+  | 'undecided'
   | 'wrong-take'
   | 'wrong-drop';
+
+/** Whether a graded cube decision was actually wrong. */
+export function isCubeMistake(mistake: CubeMistake): boolean {
+  return mistake !== 'none' && mistake !== 'undecided';
+}
 
 export interface CubeAnalysis {
   readonly choice: CubeChoice;
@@ -80,6 +88,8 @@ function describe(mistake: CubeMistake, p: number): string {
       return `At ${chance} you are ahead but not enough. Doubling now hands your opponent a comfortable take and doubles the stake on a game you may still lose.`;
     case 'too-good-to-double':
       return `At ${chance} you are too good to double: your opponent simply drops and you collect one point, when playing on wins a gammon often enough to be worth more.`;
+    case 'undecided':
+      return `At ${chance} your opponent drops any double, so cashing collects one point while playing on plays for a gammon. Which is right turns on how often this position gammons, which the engine cannot yet estimate, so neither choice is marked wrong.`;
     case 'wrong-take':
       return `With only ${chance} you are below the take point. Dropping costs one point; taking costs more than that on average.`;
     case 'wrong-drop':
@@ -101,18 +111,29 @@ export function analyseCubeDecision(board: Board, player: Player, choice: 'doubl
   const { noDouble, double } = cubeEquities(equity);
   const p = winProbabilityFromScore(equity);
 
+  // Once the position is strong enough to play on for a gammon, cashing and
+  // playing on are both defensible, and separating them needs a gammon rate
+  // the evaluator does not produce. Grading either as an error blames the
+  // player for a judgement the engine cannot make — and the engine itself
+  // plays on here, so the coach must not call that a missed double.
+  if (p >= TOO_GOOD_POINT) {
+    return {
+      choice,
+      best: choice,
+      mistake: 'undecided',
+      equityLoss: 0,
+      severity: classifyEquityLoss(0),
+      winProbability: p,
+      phase: phaseOf(board, player),
+      explanation: describe('undecided', p),
+    };
+  }
+
   const best: CubeChoice = double > noDouble ? 'double' : 'no-double';
   const equityLoss = Math.max(0, Math.max(noDouble, double) - (choice === 'double' ? double : noDouble));
 
-  let mistake: CubeMistake = 'none';
-  if (choice !== best) {
-    // "Too good" needs a gammon estimate this evaluator does not have — its
-    // implied win probability saturates near 1 well before a position is
-    // genuinely too good — so a position is only classified that way when the
-    // cubeless equity already exceeds the point a cash would collect.
-    mistake =
-      best === 'double' ? 'missed-double' : noDouble > 1 ? 'too-good-to-double' : 'premature-double';
-  }
+  const mistake: CubeMistake =
+    choice === best ? 'none' : best === 'double' ? 'missed-double' : 'premature-double';
 
   return {
     choice,

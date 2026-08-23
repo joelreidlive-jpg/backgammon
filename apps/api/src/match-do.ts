@@ -108,6 +108,13 @@ function openingRoll(): Dice {
 export class MatchDO extends DurableObject<Env> {
   private readonly sql: SqlStorage;
 
+  /**
+   * The debrief for the game currently being written to D1. Two requests can
+   * observe the same terminal state, and the stored marker only lands after
+   * the write, so without this they both record the game.
+   */
+  private finishing: { game: number; review: Promise<GameReview> } | null = null;
+
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     this.sql = ctx.storage.sql;
@@ -423,6 +430,19 @@ export class MatchDO extends DurableObject<Env> {
     if ((await this.ctx.storage.get<number>('reviewedGame')) === state.gameNumber) {
       return (await this.ctx.storage.get<GameReview>('review')) ?? null;
     }
+    if (this.finishing?.game === state.gameNumber) return this.finishing.review;
+
+    const pending = this.finishGame(state, meta);
+    this.finishing = { game: state.gameNumber, review: pending };
+    try {
+      return await pending;
+    } finally {
+      this.finishing = null;
+    }
+  }
+
+  private async finishGame(state: MatchState, meta: MatchMeta): Promise<GameReview> {
+    if (state.result === null) throw new MatchError('game is not over', 409);
 
     const turns = this.sql
       .exec<Pick<MoveRow, 'analysis'>>(
@@ -441,7 +461,7 @@ export class MatchDO extends DurableObject<Env> {
     // Reloaded rather than taken from the cache: another match may have
     // finished a game since this one started.
     const history = await loadProgress(this.env.DB, meta.playerKey);
-    const review = reviewGame(turns, cubes, history);
+    const review = reviewGame(turns, cubes, history, state.phase === 'match-over');
 
     const progress = await recordGame(this.env.DB, meta.playerKey, {
       matchId: meta.matchId,
