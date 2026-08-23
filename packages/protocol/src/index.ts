@@ -13,6 +13,10 @@ import type {
 } from '@bg/coach';
 import type {
   AttemptResult,
+  CubeAnswer,
+  CubeAttemptResult,
+  CubePrompt,
+  CubeQuestion,
   LadderState,
   ProblemPrompt,
   Provenance,
@@ -40,7 +44,27 @@ export type {
   TurnAnalysis,
 };
 
-export type { AttemptResult, LadderState, ProblemPrompt, Provenance, Tier, TierProgress };
+export type {
+  AttemptResult,
+  CubeAnswer,
+  CubeAttemptResult,
+  CubePrompt,
+  CubeQuestion,
+  LadderState,
+  ProblemPrompt,
+  Provenance,
+  Tier,
+  TierProgress,
+};
+
+/**
+ * A problem to solve. Discriminated on `kind` rather than split across two
+ * endpoints, because the trainer decides which sort of question the player
+ * needs next and the client should not get a say in it.
+ */
+export type TrainerPrompt = ProblemPrompt | CubePrompt;
+
+export type TrainerResult = AttemptResult | CubeAttemptResult;
 
 export interface CreateMatchRequest {
   readonly aiLevel?: Difficulty;
@@ -115,7 +139,7 @@ export interface TrainerProblemResponse {
   /** The caller's token, minted here if the browser did not send one. */
   readonly playerToken: string;
   /** Null only if the problem set is empty. */
-  readonly problem: ProblemPrompt | null;
+  readonly problem: TrainerPrompt | null;
   readonly ladder: LadderState;
   /** Why this problem was chosen, in the coach's own advice vocabulary. */
   readonly focus: readonly string[];
@@ -123,13 +147,22 @@ export interface TrainerProblemResponse {
   readonly solved: number;
 }
 
-export interface TrainerAttemptRequest {
+export interface CheckerAttemptRequest {
+  readonly kind?: 'checker';
   readonly problemId: string;
   readonly moves: readonly Move[];
 }
 
+export interface CubeAttemptRequest {
+  readonly kind: 'cube';
+  readonly problemId: string;
+  readonly answer: CubeAnswer;
+}
+
+export type TrainerAttemptRequest = CheckerAttemptRequest | CubeAttemptRequest;
+
 export interface TrainerAttemptResponse {
-  readonly result: AttemptResult;
+  readonly result: TrainerResult;
   readonly ladder: LadderState;
   /** True when this attempt unlocked a harder tier. */
   readonly unlocked: boolean;

@@ -8,6 +8,7 @@ import {
   scoreGame,
   winnerOf,
 } from '@bg/rules';
+import type { ResultDistribution } from './cubeful.js';
 import { type Evaluator } from './evaluator.js';
 import { heuristicEvaluator } from './heuristic.js';
 import { type SearchOptions, rankTurns } from './search.js';
@@ -266,6 +267,20 @@ export interface RolloutOutcome {
   readonly trials: number;
 }
 
+export interface DistributionOutcome {
+  readonly distribution: ResultDistribution;
+  /**
+   * Points won in each trial. Kept so a caller can resample them: whether a
+   * cube action is safe to publish depends on whether it survives the noise in
+   * this distribution, which cannot be recovered from the summary alone.
+   */
+  readonly samples: readonly number[];
+  /** Mean points won by `player`. */
+  readonly points: number;
+  readonly stderr: number;
+  readonly trials: number;
+}
+
 /**
  * Roll out a position rather than a choice of play: what is this worth, not
  * which move is best. Used to calibrate the evaluator against real outcomes.
@@ -294,6 +309,69 @@ export function rolloutOutcome(
     winRate: samples.filter((value) => value > 0).length / samples.length,
     stderr: stderrOf(samples),
     trials: samples.length,
+  };
+}
+
+/**
+ * Roll a position out to the end and report how often each result actually
+ * happened, rather than only their average.
+ *
+ * Pricing a cube needs the shape of the distribution, not just its mean: how
+ * often the win is a gammon decides whether a double is too good, and how
+ * often the loss is decides whether it is a take. Truncation cannot answer
+ * that — an estimate is a number of points, not a result — so these trials
+ * always play to the end and cost accordingly.
+ */
+export function rolloutDistribution(
+  board: Board,
+  onRoll: Player,
+  player: Player,
+  options: RolloutOptions = {},
+): DistributionOutcome {
+  const { maxTrials, seed, maxPlies } = { ...DEFAULT_ROLLOUT, ...options };
+  const policy = {
+    ...(options.policy ?? ROLLOUT_POLICY),
+    evaluator: options.evaluator ?? heuristicEvaluator,
+  };
+
+  const counts = [0, 0, 0, 0, 0, 0, 0];
+  const samples: number[] = [];
+  for (let trial = 0; trial < maxTrials; trial++) {
+    const trialSeed = (seed ^ Math.imul(trial + 1, 0x9e3779b1)) >>> 0;
+    const points = playOut(
+      board,
+      onRoll,
+      player,
+      mulberry32(trialSeed),
+      policy,
+      maxPlies,
+      0,
+      heuristicEvaluator,
+    );
+    // A finished game is worth ±1, ±2 or ±3, so anything else is the maxPlies
+    // valve firing. Counting it would quietly move mass into the wrong bucket
+    // and mis-price the cube, so a distribution refuses to be built from it.
+    if (!Number.isInteger(points) || points === 0 || Math.abs(points) > 3) {
+      throw new Error(`rollout did not finish within ${maxPlies} plies`);
+    }
+    samples.push(points);
+    counts[points + 3] += 1;
+  }
+
+  const share = (points: number): number => counts[points + 3] / maxTrials;
+  return {
+    samples,
+    distribution: {
+      winSingle: share(1),
+      winGammon: share(2),
+      winBackgammon: share(3),
+      loseSingle: share(-1),
+      loseGammon: share(-2),
+      loseBackgammon: share(-3),
+    },
+    points: mean(samples),
+    stderr: stderrOf(samples),
+    trials: maxTrials,
   };
 }
 
