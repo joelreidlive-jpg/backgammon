@@ -9,8 +9,13 @@ const FELT_WIDTH = 980;
 const BAR_WIDTH = 80;
 const POINT_WIDTH = (FELT_WIDTH - BAR_WIDTH) / 12;
 const POINT_HEIGHT = 250;
-const CHECKER_RADIUS = POINT_WIDTH / 2 - 4;
 const MAX_VISIBLE = 5;
+/**
+ * Sized so a full five-checker stack fits inside the point rather than
+ * spilling into the middle of the board, which the point's width alone does
+ * not guarantee.
+ */
+const CHECKER_RADIUS = Math.min(POINT_WIDTH / 2 - 4, POINT_HEIGHT / (2 * MAX_VISIBLE));
 const BAR_X = MARGIN + 6 * POINT_WIDTH;
 const TRAY_X = MARGIN + FELT_WIDTH + 10;
 const TRAY_WIDTH = WIDTH - TRAY_X - MARGIN;
@@ -286,14 +291,14 @@ export function Board({
         count={board.bar.black}
         player="black"
         centreX={BAR_X + BAR_WIDTH / 2}
-        baseY={HEIGHT / 2 - 150}
+        baseY={MARGIN + 20}
         direction={1}
       />
       <CheckerStack
         count={board.bar.white}
         player="white"
         centreX={BAR_X + BAR_WIDTH / 2}
-        baseY={HEIGHT / 2 + 150}
+        baseY={HEIGHT - MARGIN - 20}
         direction={-1}
       />
       <rect
