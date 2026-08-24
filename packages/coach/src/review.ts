@@ -7,6 +7,7 @@ import {
   type SkillTier,
   type Tally,
   errorRate,
+  isProvisional,
   mergeProgress,
   progressFromGame,
   tierFor,
@@ -64,7 +65,7 @@ const MAX_LEAKS = 3;
  * them distinct matters, because one good or bad game should not read as a
  * change in the player's level.
  */
-function headlineFor(tier: SkillTier, rate: number): string {
+function headlineFor(tier: SkillTier, rate: number, standing: Tally): string {
   const rounded = Math.round(rate);
   const assessment: Readonly<Record<SkillTier, string>> = {
     expert:
@@ -78,7 +79,12 @@ function headlineFor(tier: SkillTier, rate: number): string {
     novice:
       'Work on one idea at a time — the biggest single gain at this stage is making your 5-point whenever you can.',
   };
-  return `This game cost ${rounded} millipoints per decision. ${assessment[tier]}`;
+  // Say so while the grade rests mostly on the prior, or a player who wins one
+  // clean game reads a confident verdict drawn from barely any evidence.
+  const caveat = isProvisional(standing)
+    ? ` Your grade is still settling — it is based on ${standing.decisions} decision${standing.decisions === 1 ? '' : 's'} so far, and will move as you play more.`
+    : '';
+  return `This game cost ${rounded} millipoints per decision. ${assessment[tier]}${caveat}`;
 }
 
 /**
@@ -139,9 +145,21 @@ export function reviewGame(
   // single clean game does not erase a habit and one bad game does not become
   // the whole curriculum.
   const focusPhase = weakestPhase(progress);
+  // Advice that has already been given once reads as a stuck record unless it
+  // says that it is a repeat, which is itself the point: the leak survived.
   const focus = [
-    ...(focusPhase ? [PHASE_GUIDANCE[focusPhase]] : []),
-    ...weakestConcepts(progress, 2).map((concept) => CONCEPT_ADVICE[concept]),
+    ...(focusPhase
+      ? [
+          focusPhase === weakestPhase(history)
+            ? `Still your costliest phase. ${PHASE_GUIDANCE[focusPhase]}`
+            : PHASE_GUIDANCE[focusPhase],
+        ]
+      : []),
+    ...weakestConcepts(progress, 2).map((concept) =>
+      (history.byConcept[concept]?.missed ?? 0) > 0
+        ? `This keeps recurring. ${CONCEPT_ADVICE[concept]}`
+        : CONCEPT_ADVICE[concept],
+    ),
     ...cubeAdvice.slice(0, 1),
   ];
 
@@ -149,7 +167,7 @@ export function reviewGame(
     decisions: combined.decisions,
     errorRate: rate,
     tier,
-    headline: headlineFor(tier, rate),
+    headline: headlineFor(tier, rate, progress.checker),
     byPhase,
     leaks,
     cube: {
