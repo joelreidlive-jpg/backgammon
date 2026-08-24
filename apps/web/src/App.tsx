@@ -443,6 +443,15 @@ export function App() {
               rolling: rolling === 'engine',
             }}
             onRoll={canRoll && !replay ? roll : undefined}
+            cube={{
+              value: state.cube.value,
+              owner: state.cube.owner,
+              offered: state.phase === 'respond-to-double',
+              onDouble:
+                view.canDouble && yourTurn && !busy && !replay
+                  ? () => void run(() => api.cube(session, 'double'))
+                  : undefined,
+            }}
           />
         )}
 
