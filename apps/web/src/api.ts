@@ -116,6 +116,9 @@ export const api = {
   takeback: ({ matchId, playerToken }: Session) =>
     request<MatchView>(`/api/matches/${matchId}/takeback`, { method: 'POST', token: playerToken }),
 
+  playBest: ({ matchId, playerToken }: Session) =>
+    request<MatchView>(`/api/matches/${matchId}/play-best`, { method: 'POST', token: playerToken }),
+
   hint: ({ matchId, playerToken }: Session, level: HintLevel) =>
     request<Hint>(`/api/matches/${matchId}/hint?level=${level}`, { token: playerToken }),
 

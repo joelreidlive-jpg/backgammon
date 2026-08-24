@@ -10,6 +10,7 @@ import type {
 } from '@bg/protocol';
 import { Board } from './Board.js';
 import { NO_DICE_SPENT, spentFaces } from './Dice.js';
+import { costInWords } from './wording.js';
 import { api, loadPlayerToken, savePlayerToken } from './api.js';
 
 const TIER_NAMES: readonly string[] = ['', 'Straightforward', 'Routine', 'Testing', 'Hard', 'Expert'];
@@ -250,7 +251,7 @@ export function Trainer({ onExit }: TrainerProps) {
               <p className="result">
                 {outcome.result.solved
                   ? 'Correct.'
-                  : `Wrong — it costs ${outcome.result.equityLoss.toFixed(3)}.`}
+                  : `Wrong — ${costInWords(outcome.result.equityLoss)}.`}
               </p>
               <p>{outcome.result.explanation}</p>
               {!outcome.result.solved && (
@@ -273,7 +274,7 @@ export function Trainer({ onExit }: TrainerProps) {
                   ? 'Correct.'
                   : outcome.result.solved
                     ? 'Good enough — that play is worth the same.'
-                    : `Not the best play — it costs ${outcome.result.equityLoss.toFixed(3)}.`}
+                    : `Not the best play — ${costInWords(outcome.result.equityLoss)}.`}
               </p>
               <p>{outcome.result.explanation}</p>
               {!outcome.result.exact && (

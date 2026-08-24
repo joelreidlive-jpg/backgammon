@@ -18,6 +18,10 @@ export interface TurnAnalysis {
   readonly dice: Dice;
   readonly played: string;
   readonly best: string;
+  /** The position the turn was played from, so the better play can be shown. */
+  readonly boardBefore: Board;
+  readonly playedMoves: readonly Move[];
+  readonly bestMoves: readonly Move[];
   readonly playedEquity: number;
   readonly bestEquity: number;
   readonly equityLoss: number;
@@ -68,6 +72,9 @@ export function analyseTurn(
     dice,
     played: formatTurn(player, playedTurn.moves),
     best: formatTurn(player, best.turn.moves),
+    boardBefore: before,
+    playedMoves: playedTurn.moves,
+    bestMoves: best.turn.moves,
     playedEquity: played.equity,
     bestEquity: best.equity,
     equityLoss,

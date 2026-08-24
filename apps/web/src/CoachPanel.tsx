@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CoachingPolicy, CubeAnalysis, Hint, HintLevel, TurnAnalysis } from '@bg/protocol';
+import type { BetterMoveEvent, BetterMoveState } from './betterMove.js';
+import { SEVERITY_HEADLINE } from './wording.js';
 
 const HINT_LABELS: Readonly<Record<HintLevel, string>> = {
   1: 'Is this close?',
@@ -22,6 +24,19 @@ const CUBE_ACTIONS: Readonly<Record<CubeAnalysis['choice'], string>> = {
   drop: 'drop',
 };
 
+const CUBE_STRENGTH: readonly { readonly upTo: number; readonly text: string }[] = [
+  { upTo: 0.3, text: 'well behind' },
+  { upTo: 0.45, text: 'behind' },
+  { upTo: 0.55, text: 'about level' },
+  { upTo: 0.68, text: 'ahead' },
+  { upTo: 0.8, text: 'well ahead' },
+  { upTo: 1, text: 'winning comfortably' },
+];
+
+function strengthOf(winProbability: number): string {
+  return CUBE_STRENGTH.find((band) => winProbability <= band.upTo)?.text ?? 'about level';
+}
+
 export interface CoachPanelProps {
   enabled: boolean;
   canAsk: boolean;
@@ -31,6 +46,11 @@ export interface CoachPanelProps {
   policy: CoachingPolicy;
   /** Changes whenever the position on the board does. */
   position: string;
+  /** Where the player is in the show/play/revert conversation. */
+  betterMove: BetterMoveState;
+  /** True while the coach's play can still replace the one that was made. */
+  canPlayBest: boolean;
+  onBetterMove: (event: BetterMoveEvent) => void;
   onHint: (level: HintLevel) => Promise<Hint>;
   onTakeback: () => void;
 }
@@ -43,6 +63,9 @@ export function CoachPanel({
   cubeAnalysis,
   policy,
   position,
+  betterMove,
+  canPlayBest,
+  onBetterMove,
   onHint,
   onTakeback,
 }: CoachPanelProps) {
@@ -98,37 +121,70 @@ export function CoachPanel({
       {cubeAnalysis && cubeAnalysis.mistake !== 'none' && cubeAnalysis.mistake !== 'undecided' && (
         <div className={`analysis ${cubeAnalysis.severity}`}>
           <div className="analysis-head">
-            <span className="severity">cube · {cubeAnalysis.severity}</span>
-            <span className="loss">−{cubeAnalysis.equityLoss.toFixed(3)}</span>
+            <span className="severity">cube</span>
           </div>
           <p>
-            You {CUBE_LABELS[cubeAnalysis.choice]} with the engine rating you around{' '}
-            {Math.round(cubeAnalysis.winProbability * 100)}% — the cube action was to{' '}
+            You {CUBE_LABELS[cubeAnalysis.choice]} in a position where you are{' '}
+            {strengthOf(cubeAnalysis.winProbability)} — the cube action was to{' '}
             <strong>{CUBE_ACTIONS[cubeAnalysis.best]}</strong>.
           </p>
           <p className="explanation">{cubeAnalysis.explanation}</p>
         </div>
       )}
 
-      {analysis && worthMentioning && (
+      {betterMove === 'played' && (
+        <p className="replaced">Played the coach&rsquo;s move for you.</p>
+      )}
+
+      {analysis && worthMentioning && betterMove !== 'played' && (
         <div className={`analysis ${analysis.severity}`}>
           <div className="analysis-head">
-            <span className="severity">{analysis.severity}</span>
-            <span className="loss">−{analysis.equityLoss.toFixed(3)}</span>
+            <span className="severity">{SEVERITY_HEADLINE[analysis.severity]}</span>
           </div>
+
           <p>
-            You played <strong>{analysis.played}</strong>
-            {analysis.played !== analysis.best && (
-              <>
-                {' '}
-                — best was <strong>{analysis.best}</strong>
-              </>
-            )}
-            .
+            You played <strong>{analysis.played}</strong>.
           </p>
-          {analysis.played !== analysis.best && <p className="explanation">{analysis.explanation}</p>}
-          {canTakeback && policy.offerTakeback && analysis.severity === 'blunder' && (
-            <button type="button" onClick={onTakeback}>
+
+          {analysis.played !== analysis.best && (
+            <div className="better-move">
+              {betterMove === 'hidden' || betterMove === 'failed' ? (
+                <button type="button" onClick={() => onBetterMove('show')}>
+                  Show me the better move
+                </button>
+              ) : (
+                <>
+                  <p className="explanation">{analysis.explanation}</p>
+                  <p>
+                    The coach plays <strong>{analysis.best}</strong> — it is on the board now.
+                  </p>
+                  <div className="better-move-actions">
+                    <button
+                      type="button"
+                      disabled={!canPlayBest || betterMove === 'playing'}
+                      onClick={() => onBetterMove('play')}
+                    >
+                      {betterMove === 'playing' ? 'Playing…' : 'Play it instead'}
+                    </button>
+                    <button
+                      type="button"
+                      className="link"
+                      disabled={betterMove === 'playing'}
+                      onClick={() => onBetterMove('revert')}
+                    >
+                      Keep my move
+                    </button>
+                  </div>
+                </>
+              )}
+              {betterMove === 'failed' && (
+                <p className="error">That move could not be replayed — your own move stands.</p>
+              )}
+            </div>
+          )}
+
+          {canTakeback && policy.offerTakeback && analysis.severity === 'blunder' && betterMove === 'hidden' && (
+            <button type="button" className="link" onClick={onTakeback}>
               Take that move back
             </button>
           )}

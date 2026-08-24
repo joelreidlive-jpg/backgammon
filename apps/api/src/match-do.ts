@@ -15,7 +15,7 @@ import {
   respondToDouble,
   roll,
 } from '@bg/rules';
-import { type Difficulty, decideCubeAction, decideCubeResponse, decideTurn } from '@bg/ai';
+import { type Difficulty, decideCubeAction, decideCubeResponse, decideTurn, rankTurns } from '@bg/ai';
 import {
   type CoachingPolicy,
   type CubeAnalysis,
@@ -307,6 +307,49 @@ export class MatchDO extends DurableObject<Env> {
     const meta = await this.requireMeta(token);
     if (!meta.coaching) throw new MatchError('coaching is disabled for this match', 403);
 
+    const seq = await this.lastHumanTurn(meta);
+    const state = this.rewindTo(seq);
+    await this.ctx.storage.put('takebacksUsed', ((await this.ctx.storage.get<number>('takebacksUsed')) ?? 0) + 1);
+    await this.putState(state);
+    return this.view(state, meta);
+  }
+
+  /**
+   * Replace the human's last turn with the play the coach recommends.
+   *
+   * The recommended moves are recomputed here rather than taken from the
+   * client: the analysis the browser holds is only a rendering of this, and a
+   * submitted "best play" would otherwise be an unchecked move sequence.
+   */
+  async playBest(token: string): Promise<MatchView> {
+    const meta = await this.requireMeta(token);
+    if (!meta.coaching) throw new MatchError('coaching is disabled for this match', 403);
+
+    // Everything that can fail is done before the turn is unwound, so a
+    // rejected replay leaves the move actually played still on the record.
+    const seq = await this.lastHumanTurn(meta);
+    const before = JSON.parse(this.turnAt(seq).state_before) as MatchState;
+    if (before.phase !== 'move' || before.dice === null) {
+      throw new MatchError('that turn cannot be replayed', 409);
+    }
+
+    const ranked = rankTurns(before.board, meta.seat, before.dice, LIVE_ANALYSIS);
+    const best = ranked[0];
+    if (best === undefined) throw new MatchError('no play to make', 409);
+
+    this.rewindTo(seq);
+    let state = playTurn(before, best.turn.moves);
+    const analysis = analyseTurn(before.board, meta.seat, before.dice, best.turn.moves, LIVE_ANALYSIS);
+
+    this.record(before, state, meta.seat, before.dice, formatTurn(meta.seat, best.turn.moves), analysis);
+    state = this.advanceAI(state, meta);
+    await this.putState(state);
+    const review = await this.finishGameIfOver(state, meta);
+    return this.view(state, meta, { analysis, review });
+  }
+
+  /** The move-log sequence of the human's last turn of the current game. */
+  private async lastHumanTurn(meta: MatchMeta): Promise<number> {
     const current = await this.requireState();
     // The result is already scored and written to the player's permanent
     // record, so unwinding it would leave the two disagreeing.
@@ -319,15 +362,26 @@ export class MatchDO extends DurableObject<Env> {
       .toArray();
     const lastHuman = lastTurnBy(rows, meta.seat, current.gameNumber);
     if (!lastHuman) throw new MatchError('nothing to take back', 409);
+    return lastHuman.seq;
+  }
 
-    this.sql.exec('DELETE FROM moves WHERE seq >= ?', lastHuman.seq);
+  private turnAt(seq: number): MoveRow {
+    const row = this.sql.exec<MoveRow>('SELECT * FROM moves WHERE seq = ?', seq).toArray()[0];
+    if (row === undefined) throw new MatchError('nothing to take back', 409);
+    return row;
+  }
+
+  /**
+   * Roll the match back to just before the given turn, discarding it, the AI
+   * reply it triggered and the grades attached to them. Does not persist: the
+   * caller decides what happens from the restored position.
+   */
+  private rewindTo(seq: number): MatchState {
+    const row = this.turnAt(seq);
+    this.sql.exec('DELETE FROM moves WHERE seq >= ?', seq);
     // Otherwise the cube decision taken on the same roll is graded twice.
-    this.sql.exec('DELETE FROM cube_decisions WHERE move_seq >= ?', lastHuman.seq);
-    await this.ctx.storage.put('takebacksUsed', ((await this.ctx.storage.get<number>('takebacksUsed')) ?? 0) + 1);
-
-    const state = JSON.parse(lastHuman.state_before) as MatchState;
-    await this.putState(state);
-    return this.view(state, meta);
+    this.sql.exec('DELETE FROM cube_decisions WHERE move_seq >= ?', seq);
+    return JSON.parse(row.state_before) as MatchState;
   }
 
   async history(token: string): Promise<HistoryEntry[]> {
@@ -517,6 +571,9 @@ export class MatchDO extends DurableObject<Env> {
         policy.offerTakeback &&
         !over &&
         lastTurnBy(rows, meta.seat, state.gameNumber) !== null,
+      // Replaying a turn with the better play is coaching rather than a
+      // concession, so it is offered at every tier a take-back is not.
+      canPlayBest: meta.coaching && !over && lastTurnBy(rows, meta.seat, state.gameNumber) !== null,
       lastAnalysis: last.analysis ?? null,
       lastCubeAnalysis: last.cubeAnalysis ?? null,
       policy,
