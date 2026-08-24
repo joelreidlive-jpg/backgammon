@@ -76,24 +76,35 @@ function cubeEquities(equity: number): { noDouble: number; double: number; oppon
   };
 }
 
+/**
+ * How strong the position is, in words. A percentage would read as a precise
+ * number: the mapping from score to win chance is calibrated against rollouts,
+ * but the score being mapped is still the heuristic's.
+ */
+const STRENGTH: readonly { readonly upTo: number; readonly text: string }[] = [
+  { upTo: 0.3, text: 'well behind' },
+  { upTo: 0.45, text: 'behind' },
+  { upTo: 0.55, text: 'about level' },
+  { upTo: 0.68, text: 'ahead' },
+  { upTo: 0.8, text: 'well ahead' },
+  { upTo: 1, text: 'winning comfortably' },
+];
+
 function describe(mistake: CubeMistake, p: number): string {
-  // Hedged deliberately: the mapping from score to win chance is calibrated
-  // against rollouts, but the score being mapped is still the heuristic's, so
-  // this should not be read as a precise number.
-  const chance = `roughly ${Math.round(p * 100)}%`;
+  const standing = STRENGTH.find((band) => p <= band.upTo)?.text ?? 'about level';
   switch (mistake) {
     case 'missed-double':
-      return `At ${chance} to win you are strong enough to turn the cube. Leaving it costs you the extra point when the game runs your way.`;
+      return `You are ${standing} — strong enough to turn the cube. Leaving it costs you the extra point when the game runs your way.`;
     case 'premature-double':
-      return `At ${chance} you are ahead but not enough. Doubling now hands your opponent a comfortable take and doubles the stake on a game you may still lose.`;
+      return `You are ${standing}, but not by enough. Doubling now hands your opponent a comfortable take and doubles the stake on a game you may still lose.`;
     case 'too-good-to-double':
-      return `At ${chance} you are too good to double: your opponent simply drops and you collect one point, when playing on wins a gammon often enough to be worth more.`;
+      return `You are ${standing} — too good to double: your opponent simply drops and you collect one point, when playing on wins a gammon often enough to be worth more.`;
     case 'undecided':
-      return `At ${chance} your opponent drops any double, so cashing collects one point while playing on plays for a gammon. Which is right turns on how often this position gammons, which the engine cannot yet estimate, so neither choice is marked wrong.`;
+      return `You are ${standing}, so your opponent drops any double: cashing collects one point while playing on plays for a gammon. Which is right turns on how often this position gammons, which the engine cannot yet estimate, so neither choice is marked wrong.`;
     case 'wrong-take':
-      return `With only ${chance} you are below the take point. Dropping costs one point; taking costs more than that on average.`;
+      return `You are ${standing}, below the point where a take pays. Dropping costs one point; taking costs more than that on average.`;
     case 'wrong-drop':
-      return `You have ${chance} here, which is above the take point. Passing throws away a point you were entitled to play for.`;
+      return `You are ${standing}, above the point where a take pays. Passing throws away a point you were entitled to play for.`;
     case 'none':
       return 'Correct cube decision.';
   }
