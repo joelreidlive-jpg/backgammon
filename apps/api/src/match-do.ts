@@ -61,6 +61,7 @@ interface MoveRow extends Record<string, SqlStorageValue> {
   state_after: string;
   analysis: string | null;
   ts: number;
+  replaced: number;
 }
 
 interface CubeRow extends Record<string, SqlStorageValue> {
@@ -129,9 +130,18 @@ export class MatchDO extends DurableObject<Env> {
           state_before TEXT NOT NULL,
           state_after TEXT NOT NULL,
           analysis TEXT,
-          ts INTEGER NOT NULL
+          ts INTEGER NOT NULL,
+          -- 1 when the coach played this turn in place of the human's own.
+          replaced INTEGER NOT NULL DEFAULT 0
         )
       `);
+      const moveColumns = this.sql
+        .exec<{ name: string }>('PRAGMA table_info(moves)')
+        .toArray()
+        .map((column) => column.name);
+      if (!moveColumns.includes('replaced')) {
+        this.sql.exec('ALTER TABLE moves ADD COLUMN replaced INTEGER NOT NULL DEFAULT 0');
+      }
       // Cube decisions are graded separately from checker play: there are far
       // fewer of them and they are worth far more equity each.
       this.sql.exec(`
@@ -328,7 +338,12 @@ export class MatchDO extends DurableObject<Env> {
     // Everything that can fail is done before the turn is unwound, so a
     // rejected replay leaves the move actually played still on the record.
     const seq = await this.lastHumanTurn(meta);
-    const before = JSON.parse(this.turnAt(seq).state_before) as MatchState;
+    const row = this.turnAt(seq);
+    // Replaying a replacement would re-roll the engine's answering dice, which
+    // is a way to shop for a reply rather than a way to learn.
+    if (row.replaced === 1) throw new MatchError('that turn has already been replayed', 409);
+
+    const before = JSON.parse(row.state_before) as MatchState;
     if (before.phase !== 'move' || before.dice === null) {
       throw new MatchError('that turn cannot be replayed', 409);
     }
@@ -341,7 +356,15 @@ export class MatchDO extends DurableObject<Env> {
     let state = playTurn(before, best.turn.moves);
     const analysis = analyseTurn(before.board, meta.seat, before.dice, best.turn.moves, LIVE_ANALYSIS);
 
-    this.record(before, state, meta.seat, before.dice, formatTurn(meta.seat, best.turn.moves), analysis);
+    this.record(
+      before,
+      state,
+      meta.seat,
+      before.dice,
+      formatTurn(meta.seat, best.turn.moves),
+      analysis,
+      true,
+    );
     state = this.advanceAI(state, meta);
     await this.putState(state);
     const review = await this.finishGameIfOver(state, meta);
@@ -442,10 +465,11 @@ export class MatchDO extends DurableObject<Env> {
     dice: Dice,
     notation: string,
     analysis: TurnAnalysis | null,
+    replaced = false,
   ): void {
     const next = this.nextMoveSeq();
     this.sql.exec(
-      'INSERT INTO moves (seq, game, player, dice, notation, state_before, state_after, analysis, ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO moves (seq, game, player, dice, notation, state_before, state_after, analysis, ts, replaced) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       next,
       before.gameNumber,
       player,
@@ -455,6 +479,7 @@ export class MatchDO extends DurableObject<Env> {
       JSON.stringify(after),
       analysis ? JSON.stringify(analysis) : null,
       Date.now(),
+      replaced ? 1 : 0,
     );
   }
 
@@ -545,9 +570,9 @@ export class MatchDO extends DurableObject<Env> {
     // the opponent's reply in the next one.
     const rows = this.sql
       .exec<
-        Pick<MoveRow, 'seq' | 'game' | 'player' | 'dice' | 'notation'>
+        Pick<MoveRow, 'seq' | 'game' | 'player' | 'dice' | 'notation' | 'replaced'>
       >(
-        'SELECT seq, game, player, dice, notation FROM moves WHERE game = ? ORDER BY seq DESC LIMIT 8',
+        'SELECT seq, game, player, dice, notation, replaced FROM moves WHERE game = ? ORDER BY seq DESC LIMIT 8',
         state.gameNumber,
       )
       .toArray();
@@ -573,7 +598,8 @@ export class MatchDO extends DurableObject<Env> {
         lastTurnBy(rows, meta.seat, state.gameNumber) !== null,
       // Replaying a turn with the better play is coaching rather than a
       // concession, so it is offered at every tier a take-back is not.
-      canPlayBest: meta.coaching && !over && lastTurnBy(rows, meta.seat, state.gameNumber) !== null,
+      canPlayBest:
+        meta.coaching && !over && lastTurnBy(rows, meta.seat, state.gameNumber)?.replaced === 0,
       lastAnalysis: last.analysis ?? null,
       lastCubeAnalysis: last.cubeAnalysis ?? null,
       policy,
