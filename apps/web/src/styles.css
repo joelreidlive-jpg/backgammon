@@ -441,12 +441,32 @@ main {
   fill: rgba(0, 0, 0, 0.08);
 }
 
-.slabs.white rect {
-  fill: var(--white);
+.edge-body {
+  stroke-width: 1;
 }
 
-.slabs.black rect {
-  fill: var(--black-light);
+.edges.white .edge-body {
+  stroke: var(--white-dark);
+}
+
+.edges.black .edge-body {
+  stroke: var(--black-dark);
+}
+
+/* The rim of the disc, seen end-on. */
+.edge-groove {
+  stroke: rgba(0, 0, 0, 0.28);
+  stroke-width: 1.5;
+}
+
+.edge-sheen {
+  stroke: rgba(255, 255, 255, 0.3);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.edges.black .edge-sheen {
+  stroke: rgba(255, 255, 255, 0.16);
 }
 
 .stack-count {

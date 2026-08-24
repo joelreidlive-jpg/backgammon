@@ -80,21 +80,56 @@ function CheckerStack({ count, player, centreX, baseY, direction }: StackProps) 
   );
 }
 
-/** Borne-off checkers are shown as slabs; fifteen circles would not fit. */
+/**
+ * Borne-off checkers stand on their edge in the tray, as they do on a real
+ * board: fifteen discs face-on would not fit in the tray's width, and a disc
+ * seen edge-on is a rounded slab with the rim showing as a groove.
+ */
+export const EDGE_HEIGHT = 16;
+export const EDGE_PITCH = 18;
+const EDGE_INSET = 8;
+
+/** Where the i-th borne-off checker's edge sits, counting from the tray end. */
+export function offEdgeTop(baseY: number, direction: 1 | -1, index: number): number {
+  return direction === 1
+    ? baseY + index * EDGE_PITCH
+    : baseY - index * EDGE_PITCH - EDGE_HEIGHT;
+}
+
+/** The two tray ends the players' borne-off checkers stack in from. */
+export const BLACK_TRAY_BASE = MARGIN + 8;
+export const WHITE_TRAY_BASE = HEIGHT - MARGIN - 8;
+
 function OffTray({ count, player, baseY, direction }: Omit<StackProps, 'centreX'>) {
-  const slabHeight = 16;
+  const x = TRAY_X + EDGE_INSET;
+  const width = TRAY_WIDTH - 2 * EDGE_INSET;
   return (
-    <g className={`slabs ${player}`}>
-      {Array.from({ length: count }, (_, i) => (
-        <rect
-          key={i}
-          x={TRAY_X + 8}
-          y={direction === 1 ? baseY + i * slabHeight : baseY - (i + 1) * slabHeight}
-          width={TRAY_WIDTH - 16}
-          height={slabHeight - 3}
-          rx="3"
-        />
-      ))}
+    <g className={`edges ${player}`}>
+      {Array.from({ length: count }, (_, i) => {
+        const top = offEdgeTop(baseY, direction, i);
+        const middle = top + EDGE_HEIGHT / 2;
+        return (
+          <g key={i} className="checker-edge">
+            <rect
+              className="edge-body"
+              x={x}
+              y={top}
+              width={width}
+              height={EDGE_HEIGHT}
+              rx={EDGE_HEIGHT / 2}
+              fill={`url(#checker-edge-${player})`}
+            />
+            <line className="edge-groove" x1={x + 5} x2={x + width - 5} y1={middle} y2={middle} />
+            <line
+              className="edge-sheen"
+              x1={x + 7}
+              x2={x + width - 7}
+              y1={top + 3}
+              y2={top + 3}
+            />
+          </g>
+        );
+      })}
     </g>
   );
 }
@@ -138,6 +173,18 @@ function BoardDefs() {
         <stop offset="70%" className="checker-black-mid" />
         <stop offset="100%" className="checker-black-dark" />
       </radialGradient>
+
+      {/* A checker on its edge: lit along the top, shaded underneath. */}
+      <linearGradient id="checker-edge-white" x1="0" y1="0" x2="0.2" y2="1">
+        <stop offset="0%" className="checker-white-light" />
+        <stop offset="55%" className="checker-white-mid" />
+        <stop offset="100%" className="checker-white-dark" />
+      </linearGradient>
+      <linearGradient id="checker-edge-black" x1="0" y1="0" x2="0.2" y2="1">
+        <stop offset="0%" className="checker-black-light" />
+        <stop offset="55%" className="checker-black-mid" />
+        <stop offset="100%" className="checker-black-dark" />
+      </linearGradient>
 
       <linearGradient id="die-white" x1="0.2" y1="0" x2="0.8" y2="1">
         <stop offset="0%" className="die-white-light" />
@@ -346,8 +393,8 @@ export function Board({
         </text>
       )}
 
-      <OffTray count={board.off.black} player="black" baseY={MARGIN + 8} direction={1} />
-      <OffTray count={board.off.white} player="white" baseY={HEIGHT - MARGIN - 8} direction={-1} />
+      <OffTray count={board.off.black} player="black" baseY={BLACK_TRAY_BASE} direction={1} />
+      <OffTray count={board.off.white} player="white" baseY={WHITE_TRAY_BASE} direction={-1} />
       <rect
         className={['hit-area', destinations.has(off) ? 'target' : ''].filter(Boolean).join(' ')}
         x={TRAY_X}
