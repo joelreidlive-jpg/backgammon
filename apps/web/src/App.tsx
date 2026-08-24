@@ -23,7 +23,7 @@ import {
   previewDestinations,
 } from './betterMove.js';
 import { type ReplayStep, PULSE_MS, enginePlaySteps } from './enginePlay.js';
-import { type ReplyTiming, replyTiming } from './engineReply.js';
+import { type ReplyTiming, ReplyScheduler, replyTiming } from './engineReply.js';
 import { NewMatchForm } from './NewMatchForm.js';
 import { ReviewPanel } from './ReviewPanel.js';
 import { Trainer } from './Trainer.js';
@@ -88,9 +88,7 @@ export function App() {
   // then nothing left to wait for and the engine can answer at once.
   const [decided, setDecided] = useState(false);
   const advisedPosition = useRef<string>('');
-  // The position the engine has already been asked to answer, so a re-render
-  // cannot ask twice.
-  const replyAsked = useRef<string>('');
+  const replyScheduler = useRef(new ReplyScheduler());
   // A stored match the player has not yet said they want back.
   const [resumable, setResumable] = useState<MatchView | null>(null);
 
@@ -238,11 +236,10 @@ export function App() {
   const replyDelayMs = timing.reply === 'after' ? timing.ms : null;
   const replyKey = timing.reply === 'after' ? positionKey(view) : '';
   useEffect(() => {
+    const scheduler = replyScheduler.current;
     if (!session || replyDelayMs === null || busy) return;
-    if (replyAsked.current === replyKey) return;
-    replyAsked.current = replyKey;
-    const timer = setTimeout(() => void run(() => api.opponentReply(session)), replyDelayMs);
-    return () => clearTimeout(timer);
+    scheduler.schedule(replyKey, replyDelayMs, () => void run(() => api.opponentReply(session)));
+    return () => scheduler.cancel();
   }, [session, replyKey, replyDelayMs, busy, run]);
 
   // Advice belongs to one position. Replacing your move moves the game on, so

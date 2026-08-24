@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CoachingPolicy, MatchView, TurnAnalysis } from '@bg/protocol';
 import { initialBoard, newMatch } from '@bg/rules';
-import { COACH_PAUSE_MS, replyTiming } from './engineReply.js';
+import { COACH_PAUSE_MS, ReplyScheduler, replyTiming } from './engineReply.js';
 
 const policy: CoachingPolicy = {
   tier: 'novice',
@@ -97,5 +97,72 @@ describe('replyTiming', () => {
     const done = engineToMove(null);
     const view: MatchView = { ...done, state: { ...done.state, phase: 'game-over' } };
     expect(replyTiming(view, 'hidden', false)).toEqual({ reply: 'none' });
+  });
+});
+
+describe('ReplyScheduler', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('asks once the wait is up', () => {
+    const ask = vi.fn();
+    new ReplyScheduler().schedule('p1', COACH_PAUSE_MS, ask);
+    vi.advanceTimersByTime(COACH_PAUSE_MS - 1);
+    expect(ask).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(ask).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks only once for a position, however often it is scheduled', () => {
+    const ask = vi.fn();
+    const scheduler = new ReplyScheduler();
+    scheduler.schedule('p1', 0, ask);
+    vi.runAllTimers();
+    scheduler.schedule('p1', 0, ask);
+    vi.runAllTimers();
+    expect(ask).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not ask for a wait that was cancelled', () => {
+    const ask = vi.fn();
+    const scheduler = new ReplyScheduler();
+    scheduler.schedule('p1', COACH_PAUSE_MS, ask);
+    scheduler.cancel();
+    vi.runAllTimers();
+    expect(ask).not.toHaveBeenCalled();
+  });
+
+  // Keeping your move after looking at the coach's play: the wait was cancelled
+  // to hold the engine, and rescheduling it is the only thing that lets the
+  // game go on.
+  it('asks after a cancelled wait is scheduled again', () => {
+    const ask = vi.fn();
+    const scheduler = new ReplyScheduler();
+    scheduler.schedule('p1', COACH_PAUSE_MS, ask);
+    scheduler.cancel();
+    scheduler.schedule('p1', 0, ask);
+    vi.runAllTimers();
+    expect(ask).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves an answered position answered when cancelled afterwards', () => {
+    const ask = vi.fn();
+    const scheduler = new ReplyScheduler();
+    scheduler.schedule('p1', 0, ask);
+    vi.runAllTimers();
+    scheduler.cancel();
+    scheduler.schedule('p1', 0, ask);
+    vi.runAllTimers();
+    expect(ask).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers the next position', () => {
+    const ask = vi.fn();
+    const scheduler = new ReplyScheduler();
+    scheduler.schedule('p1', 0, ask);
+    vi.runAllTimers();
+    scheduler.schedule('p2', 0, ask);
+    vi.runAllTimers();
+    expect(ask).toHaveBeenCalledTimes(2);
   });
 });
