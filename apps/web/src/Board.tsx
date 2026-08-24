@@ -230,9 +230,15 @@ export interface BoardProps {
    * coach's play cannot be mistaken for the position actually reached.
    */
   previewLabel?: string;
-  /** The slot whose top checker the engine has just moved to, if any. */
-  pulse?: number | null;
+  /**
+   * Slots whose top checker should draw attention to itself: the one the
+   * engine has just moved to, or every checker of the play the coach is
+   * offering, which pulses until the offer is answered.
+   */
+  pulse?: ReadonlySet<number>;
 }
+
+const EMPTY_SLOTS: ReadonlySet<number> = new Set();
 
 export function Board({
   board,
@@ -245,7 +251,7 @@ export function Board({
   opponentDice,
   onRoll,
   previewLabel,
-  pulse,
+  pulse = EMPTY_SLOTS,
 }: BoardProps) {
   const bar = barSlot(seat);
   const off = offSlot(seat);
@@ -321,7 +327,7 @@ export function Board({
               centreX={x + POINT_WIDTH / 2}
               baseY={baseY}
               direction={top ? 1 : -1}
-              pulsing={pulse === slot}
+              pulsing={pulse.has(slot)}
             />
             <CheckerStack
               count={checkersAt(board, 'black', slot)}
@@ -329,7 +335,7 @@ export function Board({
               centreX={x + POINT_WIDTH / 2}
               baseY={baseY}
               direction={top ? 1 : -1}
-              pulsing={pulse === slot}
+              pulsing={pulse.has(slot)}
             />
             <text className="slot-label" x={x + POINT_WIDTH / 2} y={top ? MARGIN - 6 : HEIGHT - MARGIN + 16}>
               {slot}

@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dice, TurnBuilder } from '@bg/rules';
 import { boardKey, destinationsFrom, extendTurn, startTurn, undoLastMove } from '@bg/rules';
-import type { Difficulty, GameReview, HintLevel, MatchView, ProgressResponse } from '@bg/protocol';
+import type {
+  Difficulty,
+  GameReview,
+  HintLevel,
+  MatchView,
+  ProgressResponse,
+  TurnAnalysis,
+} from '@bg/protocol';
 import { Board } from './Board.js';
 import { NO_DICE_SPENT, spentFaces } from './Dice.js';
 import { ThemePicker } from './ThemePicker.js';
@@ -16,6 +23,7 @@ import {
   previewDestinations,
 } from './betterMove.js';
 import { type ReplayStep, PULSE_MS, enginePlaySteps } from './enginePlay.js';
+import { type ReplyTiming, replyTiming } from './engineReply.js';
 import { NewMatchForm } from './NewMatchForm.js';
 import { ReviewPanel } from './ReviewPanel.js';
 import { Trainer } from './Trainer.js';
@@ -72,13 +80,24 @@ export function App() {
   const [replay, setReplay] = useState<ReplayStep | null>(null);
   const [boardTheme, setBoardTheme] = useBoardTheme();
   const [betterMove, setBetterMove] = useState<BetterMoveState>('hidden');
+  // The coach's note on the turn just played. Held here rather than read
+  // straight off the view, because the engine's reply arrives in a later
+  // response and would otherwise wipe the advice off the screen.
+  const [analysis, setAnalysis] = useState<TurnAnalysis | null>(null);
+  // True once the player has answered the coach's offer, either way: there is
+  // then nothing left to wait for and the engine can answer at once.
+  const [decided, setDecided] = useState(false);
   const advisedPosition = useRef<string>('');
+  // The position the engine has already been asked to answer, so a re-render
+  // cannot ask twice.
+  const replyAsked = useRef<string>('');
   // A stored match the player has not yet said they want back.
   const [resumable, setResumable] = useState<MatchView | null>(null);
 
   const adopt = useCallback((next: MatchView) => {
     touchSession();
     setView(next);
+    if (next.lastAnalysis) setAnalysis(next.lastAnalysis);
     setSelected(null);
     setError(null);
     if (next.review) setReview(next.review);
@@ -210,6 +229,22 @@ export function App() {
     };
   }, [view]);
 
+  // The engine answers on the browser's cue rather than as part of the turn,
+  // so that the coach's offer is not overtaken by the reply it is about to be
+  // asked to replace.
+  const timing: ReplyTiming = view
+    ? replyTiming(view, betterMove, decided, analysis)
+    : { reply: 'none' };
+  const replyDelayMs = timing.reply === 'after' ? timing.ms : null;
+  const replyKey = timing.reply === 'after' ? positionKey(view) : '';
+  useEffect(() => {
+    if (!session || replyDelayMs === null || busy) return;
+    if (replyAsked.current === replyKey) return;
+    replyAsked.current = replyKey;
+    const timer = setTimeout(() => void run(() => api.opponentReply(session)), replyDelayMs);
+    return () => clearTimeout(timer);
+  }, [session, replyKey, replyDelayMs, busy, run]);
+
   // Advice belongs to one position. Replacing your move moves the game on, so
   // the position it produced is adopted here rather than treated as new, which
   // is what keeps the confirmation on screen.
@@ -288,11 +323,14 @@ export function App() {
 
   const roll = () => {
     setRolling('you');
+    // The advice on screen is about the turn before this one.
+    setAnalysis(null);
+    setDecided(false);
     void run(() => api.roll(session));
   };
 
-  const analysis = view.lastAnalysis;
   const preview = analysis && isPreviewing(betterMove) ? analysis : null;
+  const replayPulse = replay ? new Set([replay.pulse]) : NO_SLOTS;
 
   const playBest = async () => {
     setBetterMove('playing');
@@ -319,6 +357,9 @@ export function App() {
       void playBest();
       return;
     }
+    // Keeping your own move is a decision too, and the engine has been waiting
+    // on it.
+    if (event === 'revert') setDecided(true);
     setBetterMove(next);
   };
 
@@ -369,9 +410,11 @@ export function App() {
       <p className="rotate-hint">Turn your phone sideways — the board needs the width.</p>
 
       <main>
+        {/* The checkers the coach moved pulse until the offer is answered. */}
         {preview ? (
           <Board
             board={previewBoard(preview)}
+            pulse={previewDestinations(preview)}
             seat={seat}
             selected={null}
             sources={NO_SLOTS}
@@ -384,7 +427,7 @@ export function App() {
         ) : (
           <Board
             board={replay?.board ?? builder?.board ?? state.board}
-            pulse={replay?.pulse ?? null}
+            pulse={replayPulse}
             seat={seat}
             selected={replay ? null : selected}
             sources={replay ? NO_SLOTS : sources}
