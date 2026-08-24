@@ -632,6 +632,12 @@ main {
   flex-wrap: wrap;
 }
 
+/* Both exits are thumb targets on a phone, not just the primary one. */
+.better-move-actions .link {
+  min-height: 44px;
+  padding: 0 0.25rem;
+}
+
 .replaced {
   color: var(--accent);
   margin-bottom: 1rem;
