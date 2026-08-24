@@ -24,19 +24,6 @@ const CUBE_ACTIONS: Readonly<Record<CubeAnalysis['choice'], string>> = {
   drop: 'drop',
 };
 
-const CUBE_STRENGTH: readonly { readonly upTo: number; readonly text: string }[] = [
-  { upTo: 0.3, text: 'well behind' },
-  { upTo: 0.45, text: 'behind' },
-  { upTo: 0.55, text: 'about level' },
-  { upTo: 0.68, text: 'ahead' },
-  { upTo: 0.8, text: 'well ahead' },
-  { upTo: 1, text: 'winning comfortably' },
-];
-
-function strengthOf(winProbability: number): string {
-  return CUBE_STRENGTH.find((band) => winProbability <= band.upTo)?.text ?? 'about level';
-}
-
 export interface CoachPanelProps {
   enabled: boolean;
   canAsk: boolean;
@@ -124,8 +111,7 @@ export function CoachPanel({
             <span className="severity">cube</span>
           </div>
           <p>
-            You {CUBE_LABELS[cubeAnalysis.choice]} in a position where you are{' '}
-            {strengthOf(cubeAnalysis.winProbability)} — the cube action was to{' '}
+            You {CUBE_LABELS[cubeAnalysis.choice]} — the cube action was to{' '}
             <strong>{CUBE_ACTIONS[cubeAnalysis.best]}</strong>.
           </p>
           <p className="explanation">{cubeAnalysis.explanation}</p>
