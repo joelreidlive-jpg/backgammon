@@ -7,6 +7,14 @@ import { NO_DICE_SPENT, spentFaces } from './Dice.js';
 import { ThemePicker } from './ThemePicker.js';
 import { useBoardTheme } from './theme.js';
 import { CoachPanel } from './CoachPanel.js';
+import {
+  type BetterMoveEvent,
+  type BetterMoveState,
+  isPreviewing,
+  nextBetterMoveState,
+  previewBoard,
+  previewDestinations,
+} from './betterMove.js';
 import { NewMatchForm } from './NewMatchForm.js';
 import { ReviewPanel } from './ReviewPanel.js';
 import { Trainer } from './Trainer.js';
@@ -26,6 +34,14 @@ const TUMBLE_MS = 90;
 function randomFace(): number {
   return 1 + Math.floor(Math.random() * 6);
 }
+
+/** Identifies the position the coach's advice is about. */
+function positionKey(view: MatchView | null): string {
+  if (!view) return '';
+  return `${view.state.gameNumber}:${boardKey(view.state.board)}:${view.state.dice?.join('-') ?? ''}`;
+}
+
+const NO_SLOTS: ReadonlySet<number> = new Set();
 
 const LEVEL_NAMES: Readonly<Record<Difficulty, string>> = {
   beginner: 'Beginner',
@@ -49,6 +65,8 @@ export function App() {
   const [tumble, setTumble] = useState<Dice>([1, 1]);
   const lastEnginePlay = useRef<string | null>(null);
   const [boardTheme, setBoardTheme] = useBoardTheme();
+  const [betterMove, setBetterMove] = useState<BetterMoveState>('hidden');
+  const advisedPosition = useRef<string>('');
 
   const adopt = useCallback((next: MatchView) => {
     setView(next);
@@ -155,6 +173,16 @@ export function App() {
     if (key !== null) setRolling('engine');
   }, [view]);
 
+  // Advice belongs to one position. Replacing your move moves the game on, so
+  // the position it produced is adopted here rather than treated as new, which
+  // is what keeps the confirmation on screen.
+  const currentPosition = positionKey(view);
+  useEffect(() => {
+    if (advisedPosition.current === currentPosition) return;
+    advisedPosition.current = currentPosition;
+    setBetterMove('hidden');
+  }, [currentPosition]);
+
   const sources = useMemo(
     () => new Set(builder?.options.map((move) => move.from) ?? []),
     [builder],
@@ -208,6 +236,37 @@ export function App() {
     void run(() => api.roll(session));
   };
 
+  const analysis = view.lastAnalysis;
+  const preview = analysis && isPreviewing(betterMove) ? analysis : null;
+
+  const playBest = async () => {
+    setBetterMove('playing');
+    setBusy(true);
+    try {
+      const next = await api.playBest(session);
+      advisedPosition.current = positionKey(next);
+      adopt(next);
+      setBetterMove('played');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'could not play that move');
+      setBetterMove('failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onBetterMove = (event: BetterMoveEvent) => {
+    const next = nextBetterMoveState(betterMove, event);
+    if (next === betterMove) return;
+    // The request drives the state from here, so that a second click cannot
+    // submit the replacement turn twice.
+    if (next === 'playing') {
+      void playBest();
+      return;
+    }
+    setBetterMove(next);
+  };
+
   const onSelect = (slot: number) => {
     if (!builder) return;
     if (selected !== null) {
@@ -255,25 +314,39 @@ export function App() {
       <p className="rotate-hint">Turn your phone sideways — the board needs the width.</p>
 
       <main>
-        <Board
-          board={builder?.board ?? state.board}
-          seat={seat}
-          selected={selected}
-          sources={sources}
-          destinations={destinations}
-          onSelect={onSelect}
-          yourDice={{
-            dice: rolling === 'you' ? tumble : yourDice,
-            spent: builder && yourDice ? spentFaces(yourDice, builder.pending) : NO_DICE_SPENT,
-            rolling: rolling === 'you',
-          }}
-          opponentDice={{
-            dice: rolling === 'engine' ? tumble : engineDice,
-            spent: NO_DICE_SPENT,
-            rolling: rolling === 'engine',
-          }}
-          onRoll={canRoll ? roll : undefined}
-        />
+        {preview ? (
+          <Board
+            board={previewBoard(preview)}
+            seat={seat}
+            selected={null}
+            sources={NO_SLOTS}
+            destinations={previewDestinations(preview)}
+            onSelect={() => undefined}
+            yourDice={{ dice: preview.dice, spent: NO_DICE_SPENT, rolling: false }}
+            opponentDice={{ dice: null, spent: NO_DICE_SPENT, rolling: false }}
+            previewLabel="the coach’s play"
+          />
+        ) : (
+          <Board
+            board={builder?.board ?? state.board}
+            seat={seat}
+            selected={selected}
+            sources={sources}
+            destinations={destinations}
+            onSelect={onSelect}
+            yourDice={{
+              dice: rolling === 'you' ? tumble : yourDice,
+              spent: builder && yourDice ? spentFaces(yourDice, builder.pending) : NO_DICE_SPENT,
+              rolling: rolling === 'you',
+            }}
+            opponentDice={{
+              dice: rolling === 'engine' ? tumble : engineDice,
+              spent: NO_DICE_SPENT,
+              rolling: rolling === 'engine',
+            }}
+            onRoll={canRoll ? roll : undefined}
+          />
+        )}
 
         <section className="controls">
           {error && <p className="error">{error}</p>}
@@ -363,10 +436,13 @@ export function App() {
           enabled={view.coaching}
           canAsk={yourTurn && state.phase === 'move' && !busy}
           canTakeback={view.canTakeback}
-          analysis={view.lastAnalysis}
+          analysis={analysis}
           cubeAnalysis={view.lastCubeAnalysis}
           policy={view.policy}
-          position={`${state.gameNumber}:${boardKey(state.board)}:${state.dice?.join('-') ?? ''}`}
+          position={currentPosition}
+          betterMove={betterMove}
+          canPlayBest={view.canPlayBest && !busy}
+          onBetterMove={onBetterMove}
           onHint={(level: HintLevel) => api.hint(session, level)}
           onTakeback={() => void run(() => api.takeback(session))}
         />

@@ -176,6 +176,11 @@ export interface BoardProps {
   opponentDice: DiceView;
   /** Set when clicking your dice is what rolls them. */
   onRoll?: () => void;
+  /**
+   * Marks the board as a hypothetical rather than the live game, so the
+   * coach's play cannot be mistaken for the position actually reached.
+   */
+  previewLabel?: string;
 }
 
 export function Board({
@@ -188,13 +193,19 @@ export function Board({
   yourDice,
   opponentDice,
   onRoll,
+  previewLabel,
 }: BoardProps) {
   const bar = barSlot(seat);
   const off = offSlot(seat);
   const opponent: Player = seat === 'white' ? 'black' : 'white';
 
   return (
-    <svg className="board" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="group" aria-label="Backgammon board">
+    <svg
+      className={previewLabel ? 'board preview' : 'board'}
+      viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+      role="group"
+      aria-label={previewLabel ? `Backgammon board showing ${previewLabel}` : 'Backgammon board'}
+    >
       <BoardDefs />
 
       <rect className="frame" x="0" y="0" width={WIDTH} height={HEIGHT} rx="16" fill="url(#case-wood)" />
@@ -328,6 +339,12 @@ export function Board({
         onRoll={onRoll}
         label={onRoll ? 'roll the dice' : 'your dice'}
       />
+
+      {previewLabel && (
+        <text className="preview-label" x={BAR_X + BAR_WIDTH / 2} y={HEIGHT / 2 + 8}>
+          {previewLabel}
+        </text>
+      )}
 
       <OffTray count={board.off.black} player="black" baseY={MARGIN + 8} direction={1} />
       <OffTray count={board.off.white} player="white" baseY={HEIGHT - MARGIN - 8} direction={-1} />

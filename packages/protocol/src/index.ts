@@ -89,6 +89,8 @@ export interface MatchView {
   readonly legalTurns: readonly (readonly Move[])[];
   readonly canDouble: boolean;
   readonly canTakeback: boolean;
+  /** True when the coach's better play can be played in place of your last turn. */
+  readonly canPlayBest: boolean;
   /** Set for the human's own last turn while coaching is on. */
   readonly lastAnalysis: TurnAnalysis | null;
   /** Plays the AI made since the human's last action, newest last. */

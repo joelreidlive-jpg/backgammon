@@ -177,6 +177,11 @@ app.post('/api/matches/:id/takeback', async (c) => {
   return c.json(view);
 });
 
+app.post('/api/matches/:id/play-best', async (c) => {
+  const view = await stub(c.env, c.req.param('id')).playBest(token(c.req.header('x-player-token')));
+  return c.json(view);
+});
+
 app.get('/api/matches/:id/hint', async (c) => {
   const level = parse(hintLevelSchema, c.req.query('level') ?? '1');
   const hint = await stub(c.env, c.req.param('id')).hint(
