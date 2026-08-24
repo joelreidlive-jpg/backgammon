@@ -16,6 +16,8 @@ export type BetterMoveEvent =
   | 'show'
   /** The player went back to their own move. */
   | 'revert'
+  /** The player waved the coach away without looking at its move. */
+  | 'dismiss'
   /** The player asked to play the coach's move instead. */
   | 'play'
   /** The server accepted the replacement turn. */

@@ -347,6 +347,12 @@ export function App() {
   };
 
   const onBetterMove = (event: BetterMoveEvent) => {
+    // Waving the coach away changes nothing on screen, but it is the answer
+    // the engine has been waiting for.
+    if (event === 'dismiss') {
+      setDecided(true);
+      return;
+    }
     const next = nextBetterMoveState(betterMove, event);
     if (next === betterMove) return;
     // The request drives the state from here, so that a second click cannot
@@ -549,6 +555,7 @@ export function App() {
           position={currentPosition}
           betterMove={betterMove}
           canPlayBest={view.canPlayBest && !busy}
+          engineHeld={timing.reply === 'hold'}
           onBetterMove={onBetterMove}
           onHint={(level: HintLevel) => api.hint(session, level)}
           onTakeback={() => void run(() => api.takeback(session))}

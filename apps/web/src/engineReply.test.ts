@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CoachingPolicy, MatchView, TurnAnalysis } from '@bg/protocol';
 import { initialBoard, newMatch } from '@bg/rules';
-import { COACH_PAUSE_MS, ReplyScheduler, replyTiming } from './engineReply.js';
+import { ReplyScheduler, replyTiming } from './engineReply.js';
 
 const policy: CoachingPolicy = {
   tier: 'novice',
@@ -67,11 +67,9 @@ describe('replyTiming', () => {
     expect(replyTiming(engineToMove(agreed), 'hidden', false)).toEqual({ reply: 'after', ms: 0 });
   });
 
-  it('pauses for the player to ask for the better move', () => {
-    expect(replyTiming(engineToMove(blunder), 'hidden', false)).toEqual({
-      reply: 'after',
-      ms: COACH_PAUSE_MS,
-    });
+  it('holds while the coach has an offer the player has not answered', () => {
+    expect(replyTiming(engineToMove(blunder), 'hidden', false)).toEqual({ reply: 'hold' });
+    expect(replyTiming(engineToMove(blunder), 'failed', false)).toEqual({ reply: 'hold' });
   });
 
   it('holds indefinitely while the better move is on the board', () => {
@@ -79,7 +77,7 @@ describe('replyTiming', () => {
     expect(replyTiming(engineToMove(blunder), 'playing', false)).toEqual({ reply: 'hold' });
   });
 
-  it('answers without a further pause once the player has decided', () => {
+  it('answers once the player has decided, or waved the coach away', () => {
     expect(replyTiming(engineToMove(blunder), 'hidden', true)).toEqual({ reply: 'after', ms: 0 });
     expect(replyTiming(engineToMove(blunder), 'played', false)).toEqual({ reply: 'after', ms: 0 });
   });
@@ -100,14 +98,17 @@ describe('replyTiming', () => {
   });
 });
 
+/** Any wait will do: the scheduler does not care what it is waiting for. */
+const WAIT_MS = 2000;
+
 describe('ReplyScheduler', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
   it('asks once the wait is up', () => {
     const ask = vi.fn();
-    new ReplyScheduler().schedule('p1', COACH_PAUSE_MS, ask);
-    vi.advanceTimersByTime(COACH_PAUSE_MS - 1);
+    new ReplyScheduler().schedule('p1', WAIT_MS, ask);
+    vi.advanceTimersByTime(WAIT_MS - 1);
     expect(ask).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
     expect(ask).toHaveBeenCalledTimes(1);
@@ -126,7 +127,7 @@ describe('ReplyScheduler', () => {
   it('does not ask for a wait that was cancelled', () => {
     const ask = vi.fn();
     const scheduler = new ReplyScheduler();
-    scheduler.schedule('p1', COACH_PAUSE_MS, ask);
+    scheduler.schedule('p1', WAIT_MS, ask);
     scheduler.cancel();
     vi.runAllTimers();
     expect(ask).not.toHaveBeenCalled();
@@ -138,7 +139,7 @@ describe('ReplyScheduler', () => {
   it('asks after a cancelled wait is scheduled again', () => {
     const ask = vi.fn();
     const scheduler = new ReplyScheduler();
-    scheduler.schedule('p1', COACH_PAUSE_MS, ask);
+    scheduler.schedule('p1', WAIT_MS, ask);
     scheduler.cancel();
     scheduler.schedule('p1', 0, ask);
     vi.runAllTimers();
