@@ -161,6 +161,11 @@ app.post('/api/matches/:id/turn', async (c) => {
   return c.json(view);
 });
 
+app.post('/api/matches/:id/opponent', async (c) => {
+  const view = await stub(c.env, c.req.param('id')).opponentReply(token(c.req.header('x-player-token')));
+  return c.json(view);
+});
+
 app.post('/api/matches/:id/cube', async (c) => {
   const { action } = await parseBody(cubeCommandSchema, c.req.raw);
   const view = await stub(c.env, c.req.param('id')).cube(token(c.req.header('x-player-token')), action);

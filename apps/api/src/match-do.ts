@@ -202,7 +202,30 @@ export class MatchDO extends DurableObject<Env> {
 
   async get(token: string): Promise<MatchView> {
     const meta = await this.requireMeta(token);
-    return this.view(await this.requireState(), meta);
+    const state = await this.requireState();
+    // A reply the client never asked for — it was closed during the pause the
+    // coach is given — would leave the match with nobody able to move, so
+    // loading it plays the reply that was owed.
+    if (state.turn !== meta.seat) return this.opponentReply(token);
+    return this.view(state, meta);
+  }
+
+  /**
+   * Play the engine's reply. The reply is not played as part of the human's
+   * turn: the coach's better move can still replace that turn, and an engine
+   * that had already answered would have to be un-rolled to allow it. The
+   * client asks for the reply once the player has had their moment to consult
+   * the coach.
+   */
+  async opponentReply(token: string): Promise<MatchView> {
+    const meta = await this.requireMeta(token);
+    let state = await this.requireState();
+    if (state.turn === meta.seat) return this.view(state, meta);
+
+    state = this.advanceAI(state, meta);
+    await this.putState(state);
+    const review = await this.finishGameIfOver(state, meta);
+    return this.view(state, meta, { review });
   }
 
   async roll(token: string): Promise<MatchView> {
@@ -246,7 +269,6 @@ export class MatchDO extends DurableObject<Env> {
       : null;
 
     this.record(before, state, meta.seat, before.dice, formatTurn(meta.seat, moves), analysis);
-    state = this.advanceAI(state, meta);
     await this.putState(state);
     const review = await this.finishGameIfOver(state, meta);
     return this.view(state, meta, { analysis, review });
@@ -353,7 +375,7 @@ export class MatchDO extends DurableObject<Env> {
     if (best === undefined) throw new MatchError('no play to make', 409);
 
     this.rewindTo(seq);
-    let state = playTurn(before, best.turn.moves);
+    const state = playTurn(before, best.turn.moves);
     const analysis = analyseTurn(before.board, meta.seat, before.dice, best.turn.moves, LIVE_ANALYSIS);
 
     this.record(
@@ -365,7 +387,6 @@ export class MatchDO extends DurableObject<Env> {
       analysis,
       true,
     );
-    state = this.advanceAI(state, meta);
     await this.putState(state);
     const review = await this.finishGameIfOver(state, meta);
     return this.view(state, meta, { analysis, review });

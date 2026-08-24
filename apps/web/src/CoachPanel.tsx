@@ -1,13 +1,20 @@
 import { useEffect, useState } from 'react';
 import type { CoachingPolicy, CubeAnalysis, Hint, HintLevel, TurnAnalysis } from '@bg/protocol';
 import type { BetterMoveEvent, BetterMoveState } from './betterMove.js';
+import { betterMoveOffered } from './betterMove.js';
 import { SEVERITY_HEADLINE } from './wording.js';
 
-const HINT_LABELS: Readonly<Record<HintLevel, string>> = {
+/**
+ * Hints nudge; they no longer hand over the answer. Being shown the best play
+ * before moving taught nothing that the coach's better move — offered after
+ * you have committed to one — does not teach better.
+ */
+type OfferedHint = 1 | 2 | 3;
+
+const HINT_LABELS: Readonly<Record<OfferedHint, string>> = {
   1: 'Is this close?',
   2: 'Give me the idea',
   3: 'Narrow it down',
-  4: 'Show the best play',
 };
 
 const CUBE_LABELS: Readonly<Record<CubeAnalysis['choice'], string>> = {
@@ -92,11 +99,9 @@ export function CoachPanel({
   // Hint levels escalate deliberately: the answer is the last resort, so the
   // player has to think before the engine tells them what to do. Where a
   // stronger player starts is set by the server from their record.
-  const nextLevel = ((hint ? Math.min(4, hint.level + 1) : policy.defaultHintLevel) as HintLevel);
+  const nextLevel = Math.min(3, hint ? hint.level + 1 : policy.defaultHintLevel) as OfferedHint;
 
-  // Stronger players are only interrupted for bigger mistakes, which is what
-  // "levelling up" means in practice.
-  const worthMentioning = analysis !== null && analysis.equityLoss >= policy.alertThreshold;
+  const offered = betterMoveOffered(analysis, policy);
 
   return (
     <aside className="coach">
@@ -122,7 +127,7 @@ export function CoachPanel({
         <p className="replaced">Played the coach&rsquo;s move for you.</p>
       )}
 
-      {analysis && worthMentioning && betterMove !== 'played' && (
+      {offered && betterMove !== 'played' && (
         <div className={`analysis ${analysis.severity}`}>
           <div className="analysis-head">
             <span className="severity">{SEVERITY_HEADLINE[analysis.severity]}</span>
@@ -132,42 +137,42 @@ export function CoachPanel({
             You played <strong>{analysis.played}</strong>.
           </p>
 
-          {analysis.played !== analysis.best && (
-            <div className="better-move">
-              {betterMove === 'hidden' || betterMove === 'failed' ? (
-                <button type="button" onClick={() => onBetterMove('show')}>
-                  Show me the better move
-                </button>
-              ) : (
-                <>
-                  <p className="explanation">{analysis.explanation}</p>
-                  <p>
-                    The coach plays <strong>{analysis.best}</strong> — it is on the board now.
-                  </p>
-                  <div className="better-move-actions">
-                    <button
-                      type="button"
-                      disabled={!canPlayBest || betterMove === 'playing'}
-                      onClick={() => onBetterMove('play')}
-                    >
-                      {betterMove === 'playing' ? 'Playing…' : 'Play it instead'}
-                    </button>
-                    <button
-                      type="button"
-                      className="link"
-                      disabled={betterMove === 'playing'}
-                      onClick={() => onBetterMove('revert')}
-                    >
-                      Keep my move
-                    </button>
-                  </div>
-                </>
-              )}
-              {betterMove === 'failed' && (
-                <p className="error">That move could not be replayed — your own move stands.</p>
-              )}
-            </div>
-          )}
+          <div className="better-move">
+            {betterMove === 'hidden' || betterMove === 'failed' ? (
+              <button type="button" onClick={() => onBetterMove('show')}>
+                Show me the better move
+              </button>
+            ) : (
+              <>
+                <p className="explanation">{analysis.explanation}</p>
+                <p>
+                  The coach plays <strong>{analysis.best}</strong> — the checkers it moves are
+                  pulsing on the board.
+                </p>
+                <div className="better-move-actions">
+                  <button
+                    type="button"
+                    disabled={!canPlayBest || betterMove === 'playing'}
+                    onClick={() => onBetterMove('play')}
+                  >
+                    {betterMove === 'playing' ? 'Playing…' : 'Play it instead'}
+                  </button>
+                  <button
+                    type="button"
+                    className="link"
+                    disabled={betterMove === 'playing'}
+                    onClick={() => onBetterMove('revert')}
+                  >
+                    Keep my move
+                  </button>
+                </div>
+                <p className="muted">The engine waits until you choose.</p>
+              </>
+            )}
+            {betterMove === 'failed' && (
+              <p className="error">That move could not be replayed — your own move stands.</p>
+            )}
+          </div>
 
           {canTakeback && policy.offerTakeback && analysis.severity === 'blunder' && betterMove === 'hidden' && (
             <button type="button" className="link" onClick={onTakeback}>

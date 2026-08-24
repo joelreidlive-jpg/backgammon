@@ -120,6 +120,10 @@ export const api = {
       body: JSON.stringify({ moves }),
     }),
 
+  /** Asks the engine to answer, once the coach has had its moment. */
+  opponentReply: ({ matchId, playerToken }: Session) =>
+    request<MatchView>(`/api/matches/${matchId}/opponent`, { method: 'POST', token: playerToken }),
+
   cube: ({ matchId, playerToken }: Session, action: CubeCommand) =>
     request<MatchView>(`/api/matches/${matchId}/cube`, {
       method: 'POST',
