@@ -47,3 +47,35 @@ export function replyTiming(
     ms: betterMoveOffered(analysis, view.policy) ? COACH_PAUSE_MS : 0,
   };
 }
+
+/**
+ * Asks for the reply once per position, at the moment it falls due.
+ *
+ * A position stops counting as answered when its wait is cancelled — asking to
+ * see the coach's play does exactly that — because otherwise going back to
+ * your own move would leave the reply owed and never requested, and the game
+ * with nobody to move.
+ */
+export class ReplyScheduler {
+  private timer: ReturnType<typeof setTimeout> | null = null;
+  private position = '';
+
+  /** Wait `ms` and then ask, unless this position has already been asked for. */
+  schedule(position: string, ms: number, ask: () => void): void {
+    if (this.position === position) return;
+    this.cancel();
+    this.position = position;
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      ask();
+    }, ms);
+  }
+
+  /** Abandon a wait that has not yet asked. */
+  cancel(): void {
+    if (this.timer === null) return;
+    clearTimeout(this.timer);
+    this.timer = null;
+    this.position = '';
+  }
+}
