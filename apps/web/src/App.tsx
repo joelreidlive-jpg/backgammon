@@ -15,6 +15,7 @@ import {
   previewBoard,
   previewDestinations,
 } from './betterMove.js';
+import { type ReplayStep, PULSE_MS, enginePlaySteps } from './enginePlay.js';
 import { NewMatchForm } from './NewMatchForm.js';
 import { ReviewPanel } from './ReviewPanel.js';
 import { Trainer } from './Trainer.js';
@@ -24,8 +25,11 @@ import {
   loadPlayerToken,
   loadSession,
   saveSession,
+  sessionIdleMs,
+  touchSession,
   type Session,
 } from './api.js';
+import { describeResume, shouldPromptResume } from './resume.js';
 
 /** Long enough to read as a throw, short enough not to slow the game down. */
 const ROLL_MS = 700;
@@ -64,11 +68,16 @@ export function App() {
   const [rolling, setRolling] = useState<'you' | 'engine' | null>(null);
   const [tumble, setTumble] = useState<Dice>([1, 1]);
   const lastEnginePlay = useRef<string | null>(null);
+  // The engine's reply mid-replay: one checker of it at a time.
+  const [replay, setReplay] = useState<ReplayStep | null>(null);
   const [boardTheme, setBoardTheme] = useBoardTheme();
   const [betterMove, setBetterMove] = useState<BetterMoveState>('hidden');
   const advisedPosition = useRef<string>('');
+  // A stored match the player has not yet said they want back.
+  const [resumable, setResumable] = useState<MatchView | null>(null);
 
   const adopt = useCallback((next: MatchView) => {
+    touchSession();
     setView(next);
     setSelected(null);
     setError(null);
@@ -106,16 +115,21 @@ export function App() {
       .catch(() => setProgress(null));
   }, [session, view]);
 
+  // Restoring the stored match silently is right after a reload and wrong days
+  // later: the player reads a game in progress as the opening of a new one.
   useEffect(() => {
-    if (!session || view) return;
+    if (!session || view || resumable) return;
     void api
       .getMatch(session)
-      .then(adopt)
+      .then((match) => {
+        if (shouldPromptResume(match, sessionIdleMs())) setResumable(match);
+        else adopt(match);
+      })
       .catch(() => {
         clearSession();
         setSession(null);
       });
-  }, [session, view, adopt]);
+  }, [session, view, resumable, adopt]);
 
   // A reload lands on the finished game with no review in hand, so fetch the
   // one the server stored when the game ended.
@@ -164,13 +178,36 @@ export function App() {
   }, [rolling]);
 
   // The engine's roll arrives with its reply, already played, so the throw is
-  // animated when a new one appears rather than when it is made.
+  // animated when a new one appears rather than when it is made — and the
+  // checkers it moved are then walked through one at a time, since a position
+  // that changes in three places at once reads as no move at all.
   useEffect(() => {
     const played = view?.aiPlays.at(-1);
     const key = played ? `${view?.state.gameNumber}:${played.dice.join('-')}:${played.notation}` : null;
     if (key === lastEnginePlay.current) return;
     lastEnginePlay.current = key;
-    if (key !== null) setRolling('engine');
+    if (key === null || !view) return;
+    setRolling('engine');
+
+    const steps = enginePlaySteps(view.aiPlays, view.seat === 'white' ? 'black' : 'white');
+    if (steps.length === 0) return;
+
+    let timer: ReturnType<typeof setTimeout>;
+    const show = (index: number) => {
+      if (index >= steps.length) {
+        // The last step is the position the server sent, so dropping the
+        // replay here leaves the board exactly as it is.
+        setReplay(null);
+        return;
+      }
+      setReplay(steps[index]);
+      timer = setTimeout(() => show(index + 1), PULSE_MS);
+    };
+    timer = setTimeout(() => show(0), ROLL_MS);
+    return () => {
+      clearTimeout(timer);
+      setReplay(null);
+    };
   }, [view]);
 
   // Advice belongs to one position. Replacing your move moves the game on, so
@@ -203,6 +240,23 @@ export function App() {
         busy={busy}
         onTrain={() => setTraining(true)}
         progress={progress}
+        resume={
+          resumable
+            ? {
+                summary: describeResume(resumable),
+                onResume: () => {
+                  const match = resumable;
+                  setResumable(null);
+                  adopt(match);
+                },
+                onDiscard: () => {
+                  clearSession();
+                  setSession(null);
+                  setResumable(null);
+                },
+              }
+            : null
+        }
         onStart={async (request) => {
           setBusy(true);
           try {
@@ -210,6 +264,7 @@ export function App() {
             const next = { matchId: match.matchId, playerToken };
             saveSession(next);
             setSession(next);
+            setResumable(null);
             setReview(null);
             adopt(match);
           } catch (cause) {
@@ -328,12 +383,13 @@ export function App() {
           />
         ) : (
           <Board
-            board={builder?.board ?? state.board}
+            board={replay?.board ?? builder?.board ?? state.board}
+            pulse={replay?.pulse ?? null}
             seat={seat}
-            selected={selected}
-            sources={sources}
-            destinations={destinations}
-            onSelect={onSelect}
+            selected={replay ? null : selected}
+            sources={replay ? NO_SLOTS : sources}
+            destinations={replay ? NO_SLOTS : destinations}
+            onSelect={replay ? () => undefined : onSelect}
             yourDice={{
               dice: rolling === 'you' ? tumble : yourDice,
               spent: builder && yourDice ? spentFaces(yourDice, builder.pending) : NO_DICE_SPENT,
@@ -344,7 +400,7 @@ export function App() {
               spent: NO_DICE_SPENT,
               rolling: rolling === 'engine',
             }}
-            onRoll={canRoll ? roll : undefined}
+            onRoll={canRoll && !replay ? roll : undefined}
           />
         )}
 

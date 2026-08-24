@@ -43,6 +43,8 @@ interface StackProps {
   baseY: number;
   /** +1 stacks downwards, -1 upwards. */
   direction: 1 | -1;
+  /** Draws attention to the checker on top, as one the engine just moved. */
+  pulsing?: boolean;
 }
 
 /** A checker drawn as a moulded disc: lit face, bevelled rim, inset centre. */
@@ -57,12 +59,12 @@ function Checker({ cx, cy, player }: { cx: number; cy: number; player: Player })
   );
 }
 
-function CheckerStack({ count, player, centreX, baseY, direction }: StackProps) {
+function CheckerStack({ count, player, centreX, baseY, direction, pulsing }: StackProps) {
   if (count === 0) return null;
   const visible = Math.min(count, MAX_VISIBLE);
 
   return (
-    <g className={`checkers ${player}`}>
+    <g className={`checkers ${player}${pulsing ? ' pulsing' : ''}`}>
       {Array.from({ length: visible }, (_, i) => (
         <Checker key={i} cx={centreX} cy={baseY + direction * CHECKER_RADIUS * (2 * i + 1)} player={player} />
       ))}
@@ -228,6 +230,8 @@ export interface BoardProps {
    * coach's play cannot be mistaken for the position actually reached.
    */
   previewLabel?: string;
+  /** The slot whose top checker the engine has just moved to, if any. */
+  pulse?: number | null;
 }
 
 export function Board({
@@ -241,6 +245,7 @@ export function Board({
   opponentDice,
   onRoll,
   previewLabel,
+  pulse,
 }: BoardProps) {
   const bar = barSlot(seat);
   const off = offSlot(seat);
@@ -316,6 +321,7 @@ export function Board({
               centreX={x + POINT_WIDTH / 2}
               baseY={baseY}
               direction={top ? 1 : -1}
+              pulsing={pulse === slot}
             />
             <CheckerStack
               count={checkersAt(board, 'black', slot)}
@@ -323,6 +329,7 @@ export function Board({
               centreX={x + POINT_WIDTH / 2}
               baseY={baseY}
               direction={top ? 1 : -1}
+              pulsing={pulse === slot}
             />
             <text className="slot-label" x={x + POINT_WIDTH / 2} y={top ? MARGIN - 6 : HEIGHT - MARGIN + 16}>
               {slot}
