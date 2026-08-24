@@ -38,6 +38,7 @@ import {
   type Session,
 } from './api.js';
 import { describeResume, shouldPromptResume } from './resume.js';
+import { FullscreenButton } from './FullscreenButton.js';
 
 /** Long enough to read as a throw, short enough not to slow the game down. */
 const ROLL_MS = 700;
@@ -404,6 +405,7 @@ export function App() {
             New match
           </button>
           <ThemePicker theme={boardTheme} onChange={setBoardTheme} />
+          <FullscreenButton />
         </div>
       </header>
 

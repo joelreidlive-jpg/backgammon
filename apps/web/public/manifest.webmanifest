@@ -1,0 +1,26 @@
+{
+  "name": "Backgammon",
+  "short_name": "Backgammon",
+  "description": "Play backgammon against an engine that coaches you.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#14181d",
+  "theme_color": "#14181d",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "maskable"
+    }
+  ]
+}

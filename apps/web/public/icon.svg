@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Backgammon">
+  <rect width="512" height="512" rx="96" fill="#3c2317" />
+  <rect x="56" y="56" width="400" height="400" rx="24" fill="#0e4d3c" />
+  <g fill="#e8d9b5">
+    <path d="M96 96h64l-32 152z" />
+    <path d="M224 96h64l-32 152z" />
+    <path d="M352 96h64l-32 152z" />
+    <path d="M160 416H96l32-152z" />
+    <path d="M288 416h-64l32-152z" />
+    <path d="M416 416h-64l32-152z" />
+  </g>
+  <g fill="#8f1d2c" opacity="0.85">
+    <path d="M160 96h64l-32 152z" />
+    <path d="M288 96h64l-32 152z" />
+    <path d="M224 416h-64l32-152z" />
+    <path d="M352 416h-64l32-152z" />
+  </g>
+  <circle cx="256" cy="256" r="72" fill="#f4efe3" stroke="#3c2317" stroke-width="12" />
+  <circle cx="256" cy="256" r="40" fill="none" stroke="#c9bda2" stroke-width="10" />
+</svg>

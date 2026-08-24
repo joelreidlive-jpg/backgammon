@@ -895,7 +895,10 @@ main {
 @media (orientation: landscape) and (max-height: 34rem) {
   .app {
     max-width: none;
-    padding: 0.4rem 0.6rem;
+    /* Fullscreen and home-screen installs run under the notch, so the sides
+       are inset by whatever the device reserves. */
+    padding: 0.4rem calc(0.6rem + env(safe-area-inset-right)) 0.4rem
+      calc(0.6rem + env(safe-area-inset-left));
   }
 
   .app header h1 {
