@@ -9,13 +9,19 @@ const FELT_WIDTH = 980;
 const BAR_WIDTH = 80;
 const POINT_WIDTH = (FELT_WIDTH - BAR_WIDTH) / 12;
 const POINT_HEIGHT = 250;
-const CHECKER_RADIUS = POINT_WIDTH / 2 - 4;
 const MAX_VISIBLE = 5;
+/**
+ * Sized so a full five-checker stack fits inside the point rather than
+ * spilling into the middle of the board, which the point's width alone does
+ * not guarantee.
+ */
+const CHECKER_RADIUS = Math.min(POINT_WIDTH / 2 - 4, POINT_HEIGHT / (2 * MAX_VISIBLE));
 const BAR_X = MARGIN + 6 * POINT_WIDTH;
 const TRAY_X = MARGIN + FELT_WIDTH + 10;
 const TRAY_WIDTH = WIDTH - TRAY_X - MARGIN;
-/** The middle of the outer board, where dice are thrown. */
-const DICE_X = (BAR_X + BAR_WIDTH + MARGIN + FELT_WIDTH) / 2;
+/** Dice are thrown into a half: yours on the right, the engine's on the left. */
+const YOUR_DICE_X = BAR_X + BAR_WIDTH + 3 * POINT_WIDTH;
+const ENGINE_DICE_X = MARGIN + 3 * POINT_WIDTH;
 
 /**
  * Standard layout seen from White: 1-12 along the bottom right-to-left, 13-24
@@ -39,6 +45,18 @@ interface StackProps {
   direction: 1 | -1;
 }
 
+/** A checker drawn as a moulded disc: lit face, bevelled rim, inset centre. */
+function Checker({ cx, cy, player }: { cx: number; cy: number; player: Player }) {
+  return (
+    <g className="checker">
+      <ellipse className="checker-shadow" cx={cx} cy={cy + 2} rx={CHECKER_RADIUS} ry={CHECKER_RADIUS * 0.94} />
+      <circle className="checker-face" cx={cx} cy={cy} r={CHECKER_RADIUS} fill={`url(#checker-${player})`} />
+      <circle className="checker-rim" cx={cx} cy={cy} r={CHECKER_RADIUS - 3} />
+      <circle className="checker-inset" cx={cx} cy={cy} r={CHECKER_RADIUS * 0.45} />
+    </g>
+  );
+}
+
 function CheckerStack({ count, player, centreX, baseY, direction }: StackProps) {
   if (count === 0) return null;
   const visible = Math.min(count, MAX_VISIBLE);
@@ -46,7 +64,7 @@ function CheckerStack({ count, player, centreX, baseY, direction }: StackProps) 
   return (
     <g className={`checkers ${player}`}>
       {Array.from({ length: visible }, (_, i) => (
-        <circle key={i} cx={centreX} cy={baseY + direction * CHECKER_RADIUS * (2 * i + 1)} r={CHECKER_RADIUS} />
+        <Checker key={i} cx={centreX} cy={baseY + direction * CHECKER_RADIUS * (2 * i + 1)} player={player} />
       ))}
       {count > MAX_VISIBLE && (
         <text
@@ -78,6 +96,62 @@ function OffTray({ count, player, baseY, direction }: Omit<StackProps, 'centreX'
         />
       ))}
     </g>
+  );
+}
+
+/**
+ * The gradients and filters that make the board read as a physical case. The
+ * stop colours come from CSS variables, so a theme is a palette in one place
+ * rather than a second set of components.
+ */
+function BoardDefs() {
+  return (
+    <defs>
+      <linearGradient id="case-wood" x1="0" y1="0" x2="0.35" y2="1">
+        <stop offset="0%" className="wood-light" />
+        <stop offset="45%" className="wood-mid" />
+        <stop offset="100%" className="wood-dark" />
+      </linearGradient>
+
+      <radialGradient id="felt-light" cx="0.5" cy="0.42" r="0.78">
+        <stop offset="0%" className="felt-lit" />
+        <stop offset="100%" className="felt-shade" />
+      </radialGradient>
+
+      <linearGradient id="point-odd" x1="0" y1="0" x2="0.6" y2="1">
+        <stop offset="0%" className="point-odd-light" />
+        <stop offset="100%" className="point-odd-dark" />
+      </linearGradient>
+      <linearGradient id="point-even" x1="0" y1="0" x2="0.6" y2="1">
+        <stop offset="0%" className="point-even-light" />
+        <stop offset="100%" className="point-even-dark" />
+      </linearGradient>
+
+      {/* Lit from the top left, like the rest of the board. */}
+      <radialGradient id="checker-white" cx="0.35" cy="0.3" r="0.85">
+        <stop offset="0%" className="checker-white-light" />
+        <stop offset="70%" className="checker-white-mid" />
+        <stop offset="100%" className="checker-white-dark" />
+      </radialGradient>
+      <radialGradient id="checker-black" cx="0.35" cy="0.3" r="0.85">
+        <stop offset="0%" className="checker-black-light" />
+        <stop offset="70%" className="checker-black-mid" />
+        <stop offset="100%" className="checker-black-dark" />
+      </radialGradient>
+
+      <linearGradient id="die-white" x1="0.2" y1="0" x2="0.8" y2="1">
+        <stop offset="0%" className="die-white-light" />
+        <stop offset="100%" className="die-white-dark" />
+      </linearGradient>
+      <linearGradient id="die-black" x1="0.2" y1="0" x2="0.8" y2="1">
+        <stop offset="0%" className="die-black-light" />
+        <stop offset="100%" className="die-black-dark" />
+      </linearGradient>
+
+      <filter id="board-shadow" x="-30%" y="-30%" width="160%" height="160%">
+        <feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="#000" floodOpacity="0.45" />
+      </filter>
+    </defs>
   );
 }
 
@@ -117,13 +191,51 @@ export function Board({
 }: BoardProps) {
   const bar = barSlot(seat);
   const off = offSlot(seat);
+  const opponent: Player = seat === 'white' ? 'black' : 'white';
 
   return (
     <svg className="board" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="group" aria-label="Backgammon board">
-      <rect className="frame" x="0" y="0" width={WIDTH} height={HEIGHT} rx="14" />
-      <rect className="felt" x={MARGIN} y={MARGIN} width={FELT_WIDTH} height={HEIGHT - 2 * MARGIN} />
-      <rect className="bar" x={BAR_X} y={MARGIN} width={BAR_WIDTH} height={HEIGHT - 2 * MARGIN} />
-      <rect className="tray" x={TRAY_X} y={MARGIN} width={TRAY_WIDTH} height={HEIGHT - 2 * MARGIN} rx="6" />
+      <BoardDefs />
+
+      <rect className="frame" x="0" y="0" width={WIDTH} height={HEIGHT} rx="16" fill="url(#case-wood)" />
+      <rect className="frame-bevel" x="6" y="6" width={WIDTH - 12} height={HEIGHT - 12} rx="12" />
+      <rect
+        className="felt"
+        x={MARGIN}
+        y={MARGIN}
+        width={FELT_WIDTH}
+        height={HEIGHT - 2 * MARGIN}
+        fill="url(#felt-light)"
+      />
+      <rect
+        className="bar"
+        x={BAR_X}
+        y={MARGIN}
+        width={BAR_WIDTH}
+        height={HEIGHT - 2 * MARGIN}
+        fill="url(#case-wood)"
+      />
+      {/* The hinges of a folding case, on the spine. */}
+      {[HEIGHT * 0.3, HEIGHT * 0.7].map((y) => (
+        <rect
+          key={y}
+          className="hinge"
+          x={BAR_X + BAR_WIDTH / 2 - 9}
+          y={y - 18}
+          width={18}
+          height={36}
+          rx={4}
+        />
+      ))}
+      <rect
+        className="tray"
+        x={TRAY_X}
+        y={MARGIN}
+        width={TRAY_WIDTH}
+        height={HEIGHT - 2 * MARGIN}
+        rx="6"
+        fill="url(#case-wood)"
+      />
 
       {Array.from({ length: 24 }, (_, i) => i + 1).map((slot) => {
         const x = pointX(slot);
@@ -134,7 +246,11 @@ export function Board({
 
         return (
           <g key={slot}>
-            <polygon className={`point ${slot % 2 === 0 ? 'even' : 'odd'}`} points={shape} />
+            <polygon
+              className={`point ${slot % 2 === 0 ? 'even' : 'odd'}`}
+              points={shape}
+              fill={slot % 2 === 0 ? 'url(#point-even)' : 'url(#point-odd)'}
+            />
             {destinations.has(slot) && <polygon className="point-target" points={shape} />}
             <CheckerStack
               count={checkersAt(board, 'white', slot)}
@@ -175,14 +291,14 @@ export function Board({
         count={board.bar.black}
         player="black"
         centreX={BAR_X + BAR_WIDTH / 2}
-        baseY={HEIGHT / 2 - 150}
+        baseY={MARGIN + 20}
         direction={1}
       />
       <CheckerStack
         count={board.bar.white}
         player="white"
         centreX={BAR_X + BAR_WIDTH / 2}
-        baseY={HEIGHT / 2 + 150}
+        baseY={HEIGHT - MARGIN - 20}
         direction={-1}
       />
       <rect
@@ -196,19 +312,19 @@ export function Board({
         onClick={() => onSelect(bar)}
       />
 
-      {/* Dice sit in the outer board on each side, the roller's own half. */}
+      {/* Only one side's dice are ever on the felt: yours right, the engine's left. */}
       <DicePair
         {...opponentDice}
-        player={seat === 'white' ? 'black' : 'white'}
-        x={DICE_X}
-        y={HEIGHT / 2 - 70}
+        player={opponent}
+        x={ENGINE_DICE_X}
+        y={HEIGHT / 2}
         label="the engine’s dice"
       />
       <DicePair
         {...yourDice}
         player={seat}
-        x={DICE_X}
-        y={HEIGHT / 2 + 70}
+        x={YOUR_DICE_X}
+        y={HEIGHT / 2}
         onRoll={onRoll}
         label={onRoll ? 'roll the dice' : 'your dice'}
       />

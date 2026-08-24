@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { CreateMatchRequest, Difficulty, ProgressResponse } from '@bg/protocol';
 import { ProgressPanel } from './ProgressPanel.js';
+import { ThemePicker } from './ThemePicker.js';
+import { useBoardTheme } from './theme.js';
 
 const LEVELS: readonly { value: Difficulty; label: string; blurb: string }[] = [
   { value: 'beginner', label: 'Beginner', blurb: 'Plays a poor move nearly half the time' },
@@ -28,6 +30,7 @@ export function NewMatchForm({ busy, error, progress, onStart, onTrain }: NewMat
   const [matchLength, setMatchLength] = useState(1);
   const [custom, setCustom] = useState(false);
   const [coaching, setCoaching] = useState(true);
+  const [boardTheme, setBoardTheme] = useBoardTheme();
 
   return (
     <div className="setup">
@@ -105,6 +108,11 @@ export function NewMatchForm({ busy, error, progress, onStart, onTrain }: NewMat
       <button type="button" disabled={busy} onClick={() => onStart({ aiLevel, matchLength, coaching })}>
         {busy ? 'Starting…' : 'Start match'}
       </button>
+
+      <fieldset>
+        <legend>Board</legend>
+        <ThemePicker theme={boardTheme} onChange={setBoardTheme} />
+      </fieldset>
 
       <div className="trainer-entry">
         <button type="button" className="link" onClick={onTrain}>

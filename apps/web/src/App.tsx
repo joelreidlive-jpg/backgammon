@@ -4,6 +4,8 @@ import { boardKey, destinationsFrom, extendTurn, startTurn, undoLastMove } from 
 import type { Difficulty, GameReview, HintLevel, MatchView, ProgressResponse } from '@bg/protocol';
 import { Board } from './Board.js';
 import { NO_DICE_SPENT, spentFaces } from './Dice.js';
+import { ThemePicker } from './ThemePicker.js';
+import { useBoardTheme } from './theme.js';
 import { CoachPanel } from './CoachPanel.js';
 import { NewMatchForm } from './NewMatchForm.js';
 import { ReviewPanel } from './ReviewPanel.js';
@@ -46,6 +48,7 @@ export function App() {
   const [rolling, setRolling] = useState<'you' | 'engine' | null>(null);
   const [tumble, setTumble] = useState<Dice>([1, 1]);
   const lastEnginePlay = useRef<string | null>(null);
+  const [boardTheme, setBoardTheme] = useBoardTheme();
 
   const adopt = useCallback((next: MatchView) => {
     setView(next);
@@ -195,8 +198,10 @@ export function App() {
   const { state, seat } = view;
   const yourTurn = state.turn === seat;
   const canRoll = yourTurn && state.phase === 'roll' && !busy;
-  const engineDice = view.aiPlays.at(-1)?.dice ?? null;
   const yourDice = yourTurn && state.dice !== null ? state.dice : null;
+  // Only one side's dice are on the felt at a time: the engine's stay until you
+  // throw your own, which replaces them.
+  const engineDice = yourDice === null ? (view.aiPlays.at(-1)?.dice ?? null) : null;
 
   const roll = () => {
     setRolling('you');
@@ -243,6 +248,7 @@ export function App() {
           >
             New match
           </button>
+          <ThemePicker theme={boardTheme} onChange={setBoardTheme} />
         </div>
       </header>
 
