@@ -1,6 +1,7 @@
 import type { Board as BoardModel, Dice, Player } from '@bg/rules';
 import { barSlot, checkersAt, offSlot } from '@bg/rules';
 import { DicePair } from './Dice.js';
+import { cubeFace, cubeLabel, cubeSide } from './cube.js';
 
 const WIDTH = 1120;
 const HEIGHT = 640;
@@ -204,6 +205,52 @@ function BoardDefs() {
   );
 }
 
+const CUBE_SIZE = 60;
+/** Clear of both trays' borne-off checkers until a game is all but over. */
+const CUBE_OFFSET = 70;
+
+/** The doubling cube as the board should draw it. */
+export interface CubeView {
+  readonly value: number;
+  readonly owner: Player | null;
+  /** True while a double is on the table waiting to be taken or dropped. */
+  readonly offered: boolean;
+  /** Set only when doubling is the player's to make. */
+  readonly onDouble?: () => void;
+}
+
+function DoublingCube({ value, owner, offered, onDouble, seat }: CubeView & { seat: Player }) {
+  const side = cubeSide(owner, seat);
+  const y =
+    HEIGHT / 2 + (side === 'yours' ? CUBE_OFFSET : side === 'theirs' ? -CUBE_OFFSET : 0);
+  const x = TRAY_X + TRAY_WIDTH / 2;
+  const label = cubeLabel(value, owner, seat, offered);
+
+  return (
+    <g
+      className={['cube', side, offered ? 'offered' : '', onDouble ? 'clickable' : '']
+        .filter(Boolean)
+        .join(' ')}
+      role={onDouble ? 'button' : 'img'}
+      aria-label={onDouble ? `${label} — double to ${value * 2}` : label}
+      onClick={onDouble}
+    >
+      <rect
+        className="cube-body"
+        x={x - CUBE_SIZE / 2}
+        y={y - CUBE_SIZE / 2}
+        width={CUBE_SIZE}
+        height={CUBE_SIZE}
+        rx={10}
+        fill="url(#die-white)"
+      />
+      <text className="cube-value" x={x} y={y} dy="0.35em">
+        {cubeFace(value)}
+      </text>
+    </g>
+  );
+}
+
 /** One side's dice as the board should draw them. */
 export interface DiceView {
   readonly dice: Dice | null;
@@ -236,6 +283,8 @@ export interface BoardProps {
    * offering, which pulses until the offer is answered.
    */
   pulse?: ReadonlySet<number>;
+  /** Omitted on a hypothetical board, where the cube would be misleading. */
+  cube?: CubeView;
 }
 
 const EMPTY_SLOTS: ReadonlySet<number> = new Set();
@@ -252,6 +301,7 @@ export function Board({
   onRoll,
   previewLabel,
   pulse = EMPTY_SLOTS,
+  cube,
 }: BoardProps) {
   const bar = barSlot(seat);
   const off = offSlot(seat);
@@ -416,6 +466,10 @@ export function Board({
         height={HEIGHT - 2 * MARGIN}
         onClick={() => onSelect(off)}
       />
+
+      {/* After the tray's hit area, so a click on the cube is a double rather
+          than an attempt to bear off. */}
+      {cube && <DoublingCube {...cube} seat={seat} />}
     </svg>
   );
 }
