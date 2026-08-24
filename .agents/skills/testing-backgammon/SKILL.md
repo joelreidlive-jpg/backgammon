@@ -70,6 +70,33 @@ Top row (points 13..24) y≈143-262, bottom row (12..1) y≈298-453. Approx x by
 19/6 ≈419, 20/5 ≈462, 21/4 ≈506, 22/3 ≈549, 23/2 ≈592, 24/1 ≈636.
 Tap source point then destination; a complete turn auto-submits.
 
+These hard-coded numbers drift with layout changes, and the point *labels* are drawn slightly offset
+from the clickable triangles, so a click that "looks right" can miss. The reliable recipe is to read
+the hit areas out of the DOM and scale them into screenshot space:
+
+```js
+const s = 1024 / window.innerWidth;                    // screenshot space is 1024 wide
+[...document.querySelectorAll('svg rect.hit-area')].map(e => {
+  const r = e.getBoundingClientRect();
+  return [Math.round((r.x + r.width/2) * s), Math.round((r.y + r.height/2) * s)];
+});
+```
+
+Index order is bottom row right→left (points 1..12) then top row left→right (13..24), followed by the
+bar and the tray. `rect.hit-area.source` marks the points that are currently selectable — if the only
+source is the bar, you have a checker on the bar and clicks on points will (correctly) do nothing.
+Always click the source first and screenshot: the legal destinations render as green triangles, which
+is far more dependable than arithmetic on die pips.
+
+**Moving one checker with both dice** works and is worth re-checking after board/selection changes:
+play the first hop, then click the *destination* point again as the new source — it highlights and the
+second hop accepts. Verified for non-doubles (`24/18` → `18/14`), for a checker coming off the bar
+(`bar/20` → `20/14`) and for doubles (`22/16` → `16/10` → `10/4`, three hops).
+
+**Resizing the window**: `xdotool windowsize` is silently ignored while the window is maximized.
+Run `wmctrl -i -r <winid> -b remove,maximized_vert,maximized_horz` first, then resize, and re-add the
+maximized flags afterwards.
+
 ## On-board dice (Dice.tsx / Board.tsx)
 
 - Geometry comes from constants at the top of `apps/web/src/Board.tsx`
@@ -138,6 +165,27 @@ applicable": those same invisible `rect.hit-area` columns really are under the d
 `.dice-pair { pointer-events: none }` exists. **Exercise it for real**: click a screen pixel that lands on a
 settled die and sits inside a point column that has your checkers, and assert the point gets selected and
 its destination highlights (e.g. clicking on a die over point 21 with a 6 must highlight point 15).
+
+## Coach pause / engine reply (PR #31 onward)
+
+- The engine's reply is a separate `POST /api/matches/:id/opponent`, scheduled client-side by
+  `apps/web/src/engineReply.ts` (`COACH_PAUSE_MS = 2000` when the coach has a better move to offer,
+  immediate otherwise, `hold` while the preview is showing). To time it objectively, tee the wrangler
+  log through a timestamper and diff the `\.../turn` and `\.../opponent` lines:
+  `... | while read l; do echo "$(date +%H:%M:%S.%3N) $l"; done | tee /tmp/reqlog.txt`.
+- **Catching the 2s window is the hard part.** The pause starts the moment the last checker click
+  completes the turn, so issue the final destination click and the `Show me the better move` click in
+  the *same* computer-use action batch with no wait in between. If you screenshot first you will
+  usually miss it and end up testing the (different) post-reply preview path — the tell is the status
+  line: `Waiting for the engine…` means you are inside the hold, `Opponent played …` means you are not.
+- Forcing a blunder is still fishing. Breaking your own 6-point with two small dice (`6/4 6/3`,
+  `6/5 6/2`) on a fresh Beginner/coaching-on match is the most reliable trigger; mid-game sloppiness
+  often scores under the novice 0.06 threshold. Budget several turns.
+- Hint levels cap at `Narrow it down` (level 3); assert `document.body.innerText` never contains
+  `Show the best play`.
+- If the client ends up stuck on `Waiting for the engine…`, a reload recovers it: the server plays the
+  owed reply in `get()` when `state.turn !== meta.seat`. That makes reload a useful oracle for telling
+  "client never asked" apart from "server never answered".
 
 ## Known pre-existing issues (not caused by the branch under test)
 
