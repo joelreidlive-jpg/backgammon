@@ -455,6 +455,32 @@ main {
   fill: rgba(0, 0, 0, 0.08);
 }
 
+/*
+ * The checker the engine has just moved, ringed on the point it landed on.
+ * Only the one on top of the stack is the one that arrived.
+ */
+.checkers.pulsing .checker:last-of-type .checker-face {
+  stroke: var(--accent);
+  stroke-width: 4;
+  animation: checker-pulse 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes checker-pulse {
+  from {
+    stroke-opacity: 0.15;
+  }
+  to {
+    stroke-opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .checkers.pulsing .checker:last-of-type .checker-face {
+    animation: none;
+    stroke-opacity: 1;
+  }
+}
+
 .edge-body {
   stroke-width: 1;
 }

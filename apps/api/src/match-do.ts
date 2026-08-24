@@ -36,7 +36,7 @@ import {
 import type { CreateMatchRequest, CubeCommand, HistoryEntry, MatchView } from '@bg/protocol';
 import { MatchError } from './errors.js';
 import { matchOptions } from './matchOptions.js';
-import { lastTurnBy, opponentTurnsSince } from './moveLog.js';
+import { lastTurnBy, opponentTurnsSince, replayedPlay } from './moveLog.js';
 import { loadProgress, recordGame } from './players.js';
 
 interface MatchMeta {
@@ -570,14 +570,19 @@ export class MatchDO extends DurableObject<Env> {
     // the opponent's reply in the next one.
     const rows = this.sql
       .exec<
-        Pick<MoveRow, 'seq' | 'game' | 'player' | 'dice' | 'notation' | 'replaced'>
+        Pick<
+          MoveRow,
+          'seq' | 'game' | 'player' | 'dice' | 'notation' | 'replaced' | 'state_before' | 'state_after'
+        >
       >(
-        'SELECT seq, game, player, dice, notation, replaced FROM moves WHERE game = ? ORDER BY seq DESC LIMIT 8',
+        'SELECT seq, game, player, dice, notation, replaced, state_before, state_after FROM moves WHERE game = ? ORDER BY seq DESC LIMIT 8',
         state.gameNumber,
       )
       .toArray();
 
-    const aiPlays = opponentTurnsSince(rows, meta.seat, state.gameNumber);
+    const aiPlays = opponentTurnsSince(rows, meta.seat, state.gameNumber).map((row) =>
+      replayedPlay(row, opponent(meta.seat)),
+    );
 
     const over = state.phase === 'game-over' || state.phase === 'match-over';
 

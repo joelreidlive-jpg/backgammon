@@ -15,6 +15,7 @@ import {
   previewBoard,
   previewDestinations,
 } from './betterMove.js';
+import { type ReplayStep, PULSE_MS, enginePlaySteps } from './enginePlay.js';
 import { NewMatchForm } from './NewMatchForm.js';
 import { ReviewPanel } from './ReviewPanel.js';
 import { Trainer } from './Trainer.js';
@@ -67,6 +68,8 @@ export function App() {
   const [rolling, setRolling] = useState<'you' | 'engine' | null>(null);
   const [tumble, setTumble] = useState<Dice>([1, 1]);
   const lastEnginePlay = useRef<string | null>(null);
+  // The engine's reply mid-replay: one checker of it at a time.
+  const [replay, setReplay] = useState<ReplayStep | null>(null);
   const [boardTheme, setBoardTheme] = useBoardTheme();
   const [betterMove, setBetterMove] = useState<BetterMoveState>('hidden');
   const advisedPosition = useRef<string>('');
@@ -175,13 +178,36 @@ export function App() {
   }, [rolling]);
 
   // The engine's roll arrives with its reply, already played, so the throw is
-  // animated when a new one appears rather than when it is made.
+  // animated when a new one appears rather than when it is made — and the
+  // checkers it moved are then walked through one at a time, since a position
+  // that changes in three places at once reads as no move at all.
   useEffect(() => {
     const played = view?.aiPlays.at(-1);
     const key = played ? `${view?.state.gameNumber}:${played.dice.join('-')}:${played.notation}` : null;
     if (key === lastEnginePlay.current) return;
     lastEnginePlay.current = key;
-    if (key !== null) setRolling('engine');
+    if (key === null || !view) return;
+    setRolling('engine');
+
+    const steps = enginePlaySteps(view.aiPlays, view.seat === 'white' ? 'black' : 'white');
+    if (steps.length === 0) return;
+
+    let timer: ReturnType<typeof setTimeout>;
+    const show = (index: number) => {
+      if (index >= steps.length) {
+        // The last step is the position the server sent, so dropping the
+        // replay here leaves the board exactly as it is.
+        setReplay(null);
+        return;
+      }
+      setReplay(steps[index]);
+      timer = setTimeout(() => show(index + 1), PULSE_MS);
+    };
+    timer = setTimeout(() => show(0), ROLL_MS);
+    return () => {
+      clearTimeout(timer);
+      setReplay(null);
+    };
   }, [view]);
 
   // Advice belongs to one position. Replacing your move moves the game on, so
@@ -357,12 +383,13 @@ export function App() {
           />
         ) : (
           <Board
-            board={builder?.board ?? state.board}
+            board={replay?.board ?? builder?.board ?? state.board}
+            pulse={replay?.pulse ?? null}
             seat={seat}
-            selected={selected}
-            sources={sources}
-            destinations={destinations}
-            onSelect={onSelect}
+            selected={replay ? null : selected}
+            sources={replay ? NO_SLOTS : sources}
+            destinations={replay ? NO_SLOTS : destinations}
+            onSelect={replay ? () => undefined : onSelect}
             yourDice={{
               dice: rolling === 'you' ? tumble : yourDice,
               spent: builder && yourDice ? spentFaces(yourDice, builder.pending) : NO_DICE_SPENT,
@@ -373,7 +400,7 @@ export function App() {
               spent: NO_DICE_SPENT,
               rolling: rolling === 'engine',
             }}
-            onRoll={canRoll ? roll : undefined}
+            onRoll={canRoll && !replay ? roll : undefined}
           />
         )}
 

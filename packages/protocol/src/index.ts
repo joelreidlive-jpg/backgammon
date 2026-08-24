@@ -1,4 +1,4 @@
-import type { Dice, MatchState, Move, Player } from '@bg/rules';
+import type { Board, Dice, MatchState, Move, Player } from '@bg/rules';
 import type { Difficulty } from '@bg/ai';
 import type {
   CoachingPolicy,
@@ -73,10 +73,17 @@ export interface CreateMatchRequest {
   readonly seat?: Player;
 }
 
-/** One turn the AI played, with the roll it played it with. */
+/**
+ * One turn the AI played, with the roll it played it with, and enough of the
+ * position to replay it checker by checker rather than have it appear whole.
+ */
 export interface AiPlay {
   readonly dice: Dice;
   readonly notation: string;
+  /** The position the AI played from. */
+  readonly board: Board;
+  /** Moves in an order that reaches the position it left behind. */
+  readonly moves: readonly Move[];
 }
 
 /** Everything the client is allowed to see. Never includes engine internals. */
