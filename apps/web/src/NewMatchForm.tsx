@@ -14,15 +14,23 @@ const LEVELS: readonly { value: Difficulty; label: string; blurb: string }[] = [
 
 const LENGTHS: readonly number[] = [1, 3, 5, 7];
 
+/** A stored game the player can pick up where they left it. */
+export interface ResumeOffer {
+  summary: string;
+  onResume: () => void;
+  onDiscard: () => void;
+}
+
 export interface NewMatchFormProps {
   busy: boolean;
   error: string | null;
   progress: ProgressResponse | null;
   onStart: (request: CreateMatchRequest) => void;
   onTrain: () => void;
+  resume?: ResumeOffer | null;
 }
 
-export function NewMatchForm({ busy, error, progress, onStart, onTrain }: NewMatchFormProps) {
+export function NewMatchForm({ busy, error, progress, onStart, onTrain, resume }: NewMatchFormProps) {
   // Progress arrives after the first render, so the suggested level has to be
   // read live rather than captured as initial state — until the player picks.
   const [chosenLevel, setChosenLevel] = useState<Difficulty | null>(null);
@@ -36,6 +44,21 @@ export function NewMatchForm({ busy, error, progress, onStart, onTrain }: NewMat
     <div className="setup">
       <h1>Backgammon</h1>
       <p className="muted">Play the engine, with a coach watching over your shoulder.</p>
+
+      {resume && (
+        <div className="resume">
+          <p>
+            <strong>You left a game unfinished.</strong>{' '}
+            <span className="muted">{resume.summary}</span>
+          </p>
+          <button type="button" onClick={resume.onResume}>
+            Resume it
+          </button>
+          <button type="button" className="link" onClick={resume.onDiscard}>
+            Leave it and start a new one
+          </button>
+        </div>
+      )}
 
       <fieldset>
         <legend>Opponent</legend>

@@ -24,8 +24,11 @@ import {
   loadPlayerToken,
   loadSession,
   saveSession,
+  sessionIdleMs,
+  touchSession,
   type Session,
 } from './api.js';
+import { describeResume, shouldPromptResume } from './resume.js';
 
 /** Long enough to read as a throw, short enough not to slow the game down. */
 const ROLL_MS = 700;
@@ -67,8 +70,11 @@ export function App() {
   const [boardTheme, setBoardTheme] = useBoardTheme();
   const [betterMove, setBetterMove] = useState<BetterMoveState>('hidden');
   const advisedPosition = useRef<string>('');
+  // A stored match the player has not yet said they want back.
+  const [resumable, setResumable] = useState<MatchView | null>(null);
 
   const adopt = useCallback((next: MatchView) => {
+    touchSession();
     setView(next);
     setSelected(null);
     setError(null);
@@ -106,16 +112,21 @@ export function App() {
       .catch(() => setProgress(null));
   }, [session, view]);
 
+  // Restoring the stored match silently is right after a reload and wrong days
+  // later: the player reads a game in progress as the opening of a new one.
   useEffect(() => {
-    if (!session || view) return;
+    if (!session || view || resumable) return;
     void api
       .getMatch(session)
-      .then(adopt)
+      .then((match) => {
+        if (shouldPromptResume(match, sessionIdleMs())) setResumable(match);
+        else adopt(match);
+      })
       .catch(() => {
         clearSession();
         setSession(null);
       });
-  }, [session, view, adopt]);
+  }, [session, view, resumable, adopt]);
 
   // A reload lands on the finished game with no review in hand, so fetch the
   // one the server stored when the game ended.
@@ -203,6 +214,23 @@ export function App() {
         busy={busy}
         onTrain={() => setTraining(true)}
         progress={progress}
+        resume={
+          resumable
+            ? {
+                summary: describeResume(resumable),
+                onResume: () => {
+                  const match = resumable;
+                  setResumable(null);
+                  adopt(match);
+                },
+                onDiscard: () => {
+                  clearSession();
+                  setSession(null);
+                  setResumable(null);
+                },
+              }
+            : null
+        }
         onStart={async (request) => {
           setBusy(true);
           try {
@@ -210,6 +238,7 @@ export function App() {
             const next = { matchId: match.matchId, playerToken };
             saveSession(next);
             setSession(next);
+            setResumable(null);
             setReview(null);
             adopt(match);
           } catch (cause) {

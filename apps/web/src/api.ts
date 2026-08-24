@@ -16,6 +16,7 @@ import type {
 
 const TOKEN_KEY = 'bg.playerToken';
 const MATCH_KEY = 'bg.matchId';
+const ACTIVE_KEY = 'bg.matchActiveAt';
 
 export interface Session {
   readonly matchId: string;
@@ -44,11 +45,27 @@ export function loadSession(): Session | null {
 export function saveSession(session: Session): void {
   localStorage.setItem(MATCH_KEY, session.matchId);
   savePlayerToken(session.playerToken);
+  touchSession();
+}
+
+/** Records that the stored match is being played right now. */
+export function touchSession(): void {
+  localStorage.setItem(ACTIVE_KEY, String(Date.now()));
+}
+
+/**
+ * How long the stored match has been untouched, or `null` when that is not
+ * known — a match stored before this was recorded is old by definition.
+ */
+export function sessionIdleMs(now = Date.now()): number | null {
+  const stamp = Number(localStorage.getItem(ACTIVE_KEY));
+  return Number.isFinite(stamp) && stamp > 0 ? Math.max(0, now - stamp) : null;
 }
 
 /** Forgets the current match but keeps the player. */
 export function clearSession(): void {
   localStorage.removeItem(MATCH_KEY);
+  localStorage.removeItem(ACTIVE_KEY);
 }
 
 export class ApiError extends Error {}

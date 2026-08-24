@@ -280,6 +280,20 @@ main {
   gap: 0.6rem;
 }
 
+.resume {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  border-left: 3px solid #4a5568;
+  padding-left: 0.75rem;
+}
+
+.resume p {
+  flex-basis: 100%;
+  margin: 0;
+}
+
 .cube-answers {
   display: flex;
   flex-wrap: wrap;
