@@ -10,6 +10,7 @@ import type {
 } from '@bg/protocol';
 import { Board } from './Board.js';
 import { NO_DICE_SPENT, spentFaces } from './Dice.js';
+import { Glossed } from './Glossary.js';
 import { costInWords } from './wording.js';
 import { api, loadPlayerToken, savePlayerToken } from './api.js';
 
@@ -253,7 +254,9 @@ export function Trainer({ onExit }: TrainerProps) {
                   ? 'Correct.'
                   : `Wrong — ${costInWords(outcome.result.equityLoss)}.`}
               </p>
-              <p>{outcome.result.explanation}</p>
+              <p>
+                <Glossed>{outcome.result.explanation}</Glossed>
+              </p>
               {!outcome.result.solved && (
                 <p className="muted">
                   You said <strong>{ANSWER_LABELS[outcome.result.chosen]}</strong>; the answer is{' '}
@@ -276,7 +279,9 @@ export function Trainer({ onExit }: TrainerProps) {
                     ? 'Good enough — that play is worth the same.'
                     : `Not the best play — ${costInWords(outcome.result.equityLoss)}.`}
               </p>
-              <p>{outcome.result.explanation}</p>
+              <p>
+                <Glossed>{outcome.result.explanation}</Glossed>
+              </p>
               {!outcome.result.exact && (
                 <p className="muted">
                   You played <strong>{outcome.result.played}</strong>; the answer is{' '}

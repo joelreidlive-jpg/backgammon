@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { CoachingPolicy, CubeAnalysis, Hint, HintLevel, TurnAnalysis } from '@bg/protocol';
 import type { BetterMoveEvent, BetterMoveState } from './betterMove.js';
 import { betterMoveOffered } from './betterMove.js';
+import { Glossed } from './Glossary.js';
 import { SEVERITY_HEADLINE } from './wording.js';
 
 /**
@@ -122,7 +123,9 @@ export function CoachPanel({
             You {CUBE_LABELS[cubeAnalysis.choice]} — the cube action was to{' '}
             <strong>{CUBE_ACTIONS[cubeAnalysis.best]}</strong>.
           </p>
-          <p className="explanation">{cubeAnalysis.explanation}</p>
+          <p className="explanation">
+            <Glossed>{cubeAnalysis.explanation}</Glossed>
+          </p>
         </div>
       )}
 
@@ -156,7 +159,9 @@ export function CoachPanel({
               </>
             ) : (
               <>
-                <p className="explanation">{analysis.explanation}</p>
+                <p className="explanation">
+                  <Glossed>{analysis.explanation}</Glossed>
+                </p>
                 <p>
                   The coach plays <strong>{analysis.best}</strong> — the checkers it moves are
                   pulsing on the board.
@@ -201,7 +206,9 @@ export function CoachPanel({
         {failure && <p className="error">{failure}</p>}
         {hint && (
           <div className="hint">
-            <p>{hint.message}</p>
+            <p>
+              <Glossed>{hint.message}</Glossed>
+            </p>
             {hint.candidates && (
               <ul>
                 {hint.candidates.map((play) => (

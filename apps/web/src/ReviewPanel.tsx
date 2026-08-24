@@ -1,4 +1,5 @@
 import type { GameReview } from '@bg/protocol';
+import { Glossed } from './Glossary.js';
 
 const PHASE_NAMES: Readonly<Record<string, string>> = {
   opening: 'Opening',
@@ -35,7 +36,9 @@ export function ReviewPanel({ review }: { review: GameReview }) {
         <span className="muted">{review.trend}</span>
       </header>
 
-      <p className="headline">{review.headline}</p>
+      <p className="headline">
+        <Glossed>{review.headline}</Glossed>
+      </p>
       <p className="muted">
         {review.decisions} decision{review.decisions === 1 ? '' : 's'} · {millipoints(review.errorRate)}{' '}
         millipoints lost per decision
@@ -53,7 +56,9 @@ export function ReviewPanel({ review }: { review: GameReview }) {
                     {phase.decisions} · {millipoints(phase.errorRate)}
                   </span>
                 </div>
-                <p>{phase.guidance}</p>
+                <p>
+                  <Glossed>{phase.guidance}</Glossed>
+                </p>
               </li>
             ))}
           </ul>
@@ -66,7 +71,7 @@ export function ReviewPanel({ review }: { review: GameReview }) {
           <ul className="leaks">
             {review.leaks.map((leak) => (
               <li key={leak.concept}>
-                <strong>×{leak.occurrences}</strong> {leak.advice}
+                <strong>×{leak.occurrences}</strong> <Glossed>{leak.advice}</Glossed>
               </li>
             ))}
           </ul>
@@ -90,7 +95,9 @@ export function ReviewPanel({ review }: { review: GameReview }) {
           )}
           <ul className="cube-advice">
             {review.cube.advice.map((line) => (
-              <li key={line}>{line}</li>
+              <li key={line}>
+                <Glossed>{line}</Glossed>
+              </li>
             ))}
           </ul>
         </>
@@ -103,7 +110,7 @@ export function ReviewPanel({ review }: { review: GameReview }) {
             {review.worstMoments.map((moment, index) => (
               <li key={`${moment.played}-${index}`}>
                 <span className={`severity ${moment.severity}`}>{moment.severity}</span> {moment.played} —
-                best was {moment.best}. {moment.explanation}
+                best was {moment.best}. <Glossed>{moment.explanation}</Glossed>
               </li>
             ))}
           </ul>
@@ -115,7 +122,9 @@ export function ReviewPanel({ review }: { review: GameReview }) {
           <h3>Work on this next</h3>
           <ul className="focus">
             {review.focus.map((line) => (
-              <li key={line}>{line}</li>
+              <li key={line}>
+                <Glossed>{line}</Glossed>
+              </li>
             ))}
           </ul>
         </>
