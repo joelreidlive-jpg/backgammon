@@ -61,9 +61,12 @@ function explore(
  *   2. If exactly one die can be played and the dice differ, you must play the
  *      higher one when doing so is legal.
  *
- * Turns reaching an identical position are collapsed into one.
+ * Every ordering is kept, including ones that reach a position another
+ * ordering also reaches: a player building a turn a click at a time takes one
+ * particular route to a position, and only the route they took tells you what
+ * they may click next.
  */
-export function legalTurns(board: Board, player: Player, dice: Dice): Turn[] {
+export function legalTurnSequences(board: Board, player: Player, dice: Dice): Turn[] {
   const candidates: Candidate[] = [];
   explore(board, player, diceToPlay(dice), [], [], candidates);
 
@@ -78,13 +81,23 @@ export function legalTurns(board: Board, player: Player, dice: Dice): Turn[] {
     if (playsHigher.length > 0) viable = playsHigher;
   }
 
+  return viable.map((c) => ({ moves: c.moves, board: c.board }));
+}
+
+/**
+ * The distinct plays available: turns reaching an identical position are
+ * collapsed into one, so a chooser (the engine, the coach) sees each play once.
+ */
+export function legalTurns(board: Board, player: Player, dice: Dice): Turn[] {
+  const viable = legalTurnSequences(board, player, dice);
+
   const seen = new Set<string>();
   const turns: Turn[] = [];
   for (const candidate of viable) {
     const key = boardKey(candidate.board);
     if (seen.has(key)) continue;
     seen.add(key);
-    turns.push({ moves: candidate.moves, board: candidate.board });
+    turns.push(candidate);
   }
   return turns;
 }
@@ -102,10 +115,11 @@ function moveMultiset(moves: readonly Move[]): string {
 
 /**
  * Resolve a client-submitted move sequence to a legal turn, or null if it is
- * not legal. Clients may submit the moves in any equivalent order.
+ * not legal. Clients may submit the moves in any equivalent order, and by any
+ * route: 17/13 13/11 is the same play as 17/15 15/11.
  */
 export function findTurn(board: Board, player: Player, dice: Dice, moves: readonly Move[]): Turn | null {
-  const legal = legalTurns(board, player, dice);
+  const legal = legalTurnSequences(board, player, dice);
   const ordered = moveSequence(moves);
   const exact = legal.find((t) => moveSequence(t.moves) === ordered);
   if (exact) return exact;

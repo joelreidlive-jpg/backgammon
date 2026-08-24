@@ -1,5 +1,5 @@
 import { type Board, type Player } from './board.js';
-import { type Dice, diceToPlay, legalTurns } from './legalTurns.js';
+import { type Dice, diceToPlay, legalTurnSequences } from './legalTurns.js';
 import { type Move, applyMove, movesForDie } from './moves.js';
 
 /**
@@ -40,7 +40,9 @@ function build(origin: Board, player: Player, dice: Dice, pending: readonly Move
   let board = origin;
   for (const move of pending) board = applyMove(board, player, move);
 
-  const candidates = legalTurns(origin, player, dice)
+  // Sequences, not distinct plays: the player's route to a position is what
+  // decides what they may click next, and two routes can reach the same one.
+  const candidates = legalTurnSequences(origin, player, dice)
     .map((turn) => ({ turn, rest: subtract(turn.moves, pending) }))
     .filter((entry): entry is { turn: (typeof entry)['turn']; rest: Move[] } => entry.rest !== null);
 

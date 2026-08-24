@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { checkersAt, initialBoard } from './board.js';
-import { legalTurns } from './legalTurns.js';
+import { findTurn, legalTurns } from './legalTurns.js';
 import { destinationsFrom, extendTurn, startTurn, undoLastMove } from './turnBuilder.js';
 import { makeBoard } from './testing.js';
 
@@ -48,6 +48,31 @@ describe('turn builder', () => {
     // 24/18 then 18/13 is the only route off the 24 with a 6-5: black owns 19.
     const builder = startTurn(initialBoard(), 'white', [6, 5]);
     expect(destinationsFrom(builder, 24).map((m) => m.to)).toEqual([18]);
+  });
+
+  /**
+   * 17/13 13/11* and 17/15 15/11* reach the same position, so only one of them
+   * survives into the list of distinct plays. The player who took the other
+   * route must still be able to finish it.
+   */
+  it('lets one checker play both dice by either route', () => {
+    const board = makeBoard({ white: { 17: 1, 24: 2, 4: 2 }, black: { 11: 1 } });
+    const builder = extendTurn(startTurn(board, 'white', [2, 4]), { from: 17, to: 13, hit: false });
+
+    expect(destinationsFrom(builder, 13).map((m) => m.to)).toEqual([11]);
+    expect(extendTurn(builder, { from: 13, to: 11, hit: true }).complete).toBe(true);
+  });
+
+  it('accepts the play by the route the player took', () => {
+    const board = makeBoard({ white: { 17: 1, 24: 2, 4: 2 }, black: { 11: 1 } });
+    const turn = findTurn(board, 'white', [2, 4], [
+      { from: 17, to: 13, hit: false },
+      { from: 13, to: 11, hit: true },
+    ]);
+
+    if (turn === null) throw new Error('the play was rejected');
+    expect(checkersAt(turn.board, 'white', 11)).toBe(1);
+    expect(turn.board.bar.black).toBe(1);
   });
 
   it('only ever completes into a turn the rules accept', () => {
