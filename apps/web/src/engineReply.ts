@@ -1,17 +1,10 @@
 import type { MatchView, TurnAnalysis } from '@bg/protocol';
 import { type BetterMoveState, betterMoveOffered, isPreviewing } from './betterMove.js';
 
-/**
- * How long the engine is held back after a turn the coach has something to say
- * about — long enough to reach for "show me the better move", short enough not
- * to feel like the game has stalled.
- */
-export const COACH_PAUSE_MS = 2000;
-
 export type ReplyTiming =
   /** The engine owes no reply. */
   | { readonly reply: 'none' }
-  /** Held until the player has answered the coach's offer. */
+  /** Held until the player has answered the coach, one way or another. */
   | { readonly reply: 'hold' }
   /** Asked for after this long. */
   | { readonly reply: 'after'; readonly ms: number };
@@ -22,8 +15,9 @@ export type ReplyTiming =
  * The reply is no longer part of submitting a turn, because a turn the coach
  * is about to offer to replace cannot have been answered yet: the engine's
  * dice would have to be un-rolled to allow the replacement. So the browser
- * decides when the answer is due, and the pause exists to give the player time
- * to ask for the better move before the game moves on.
+ * decides when the answer is due. Whenever the coach has something to say the
+ * reply is held outright rather than merely delayed: a coaching game that
+ * moves on while you are still reading its advice has not coached you.
  */
 export function replyTiming(
   view: MatchView,
@@ -42,10 +36,7 @@ export function replyTiming(
   if (isPreviewing(betterMove)) return { reply: 'hold' };
   if (decided || betterMove === 'played') return { reply: 'after', ms: 0 };
 
-  return {
-    reply: 'after',
-    ms: betterMoveOffered(analysis, view.policy) ? COACH_PAUSE_MS : 0,
-  };
+  return betterMoveOffered(analysis, view.policy) ? { reply: 'hold' } : { reply: 'after', ms: 0 };
 }
 
 /**

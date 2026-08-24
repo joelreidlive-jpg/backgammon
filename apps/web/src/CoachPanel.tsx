@@ -44,6 +44,8 @@ export interface CoachPanelProps {
   betterMove: BetterMoveState;
   /** True while the coach's play can still replace the one that was made. */
   canPlayBest: boolean;
+  /** True while the engine is waiting on the player to answer the coach. */
+  engineHeld: boolean;
   onBetterMove: (event: BetterMoveEvent) => void;
   onHint: (level: HintLevel) => Promise<Hint>;
   onTakeback: () => void;
@@ -59,6 +61,7 @@ export function CoachPanel({
   position,
   betterMove,
   canPlayBest,
+  engineHeld,
   onBetterMove,
   onHint,
   onTakeback,
@@ -139,9 +142,18 @@ export function CoachPanel({
 
           <div className="better-move">
             {betterMove === 'hidden' || betterMove === 'failed' ? (
-              <button type="button" onClick={() => onBetterMove('show')}>
-                Show me the better move
-              </button>
+              <>
+                <button type="button" onClick={() => onBetterMove('show')}>
+                  Show me the better move
+                </button>
+                {/* The engine waits on the coach being answered, so there has
+                    to be a way of answering "nothing, thanks". */}
+                {engineHeld && (
+                  <button type="button" className="link" onClick={() => onBetterMove('dismiss')}>
+                    Carry on
+                  </button>
+                )}
+              </>
             ) : (
               <>
                 <p className="explanation">{analysis.explanation}</p>
