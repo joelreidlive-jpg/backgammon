@@ -475,7 +475,8 @@ main {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .checkers.pulsing .checker:last-of-type .checker-face {
+  .checkers.pulsing .checker:last-of-type .checker-face,
+  .cube.offered .cube-body {
     animation: none;
     stroke-opacity: 1;
   }
@@ -523,6 +524,47 @@ main {
   fill: var(--slot-label);
   font-size: 15px;
   text-anchor: middle;
+}
+
+/* The doubling cube, in the tray beside the borne-off checkers */
+
+.cube {
+  pointer-events: none;
+}
+
+.cube-body {
+  stroke: rgba(0, 0, 0, 0.4);
+  stroke-width: 1.5;
+}
+
+.cube-value {
+  fill: var(--die-white-pip);
+  font-size: 26px;
+  font-weight: 700;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.cube.clickable {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.cube.clickable .cube-body {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+
+.cube.clickable:hover .cube-body,
+.cube.clickable:focus-visible .cube-body {
+  stroke-width: 4;
+}
+
+/* A double on the table is the one thing on the board that cannot be ignored. */
+.cube.offered .cube-body {
+  stroke: var(--accent);
+  stroke-width: 3;
+  animation: checker-pulse 0.5s ease-in-out infinite alternate;
 }
 
 /* Dice on the felt */
