@@ -68,12 +68,32 @@ export const TIER_CEILINGS: readonly { tier: SkillTier; ceiling: number }[] = [
   { tier: 'novice', ceiling: Infinity },
 ];
 
-/** Until there is enough evidence, assume the player is still learning. */
-const MIN_DECISIONS_FOR_TIER = 30;
+/**
+ * A player with no record is assumed to be around the middle of the novice
+ * band, and that assumption is worth this many decisions of evidence. One game
+ * is roughly 30 decisions, so a first strong game moves the grade one band
+ * rather than all four: the grade converges on the truth over a handful of
+ * games instead of flipping on a single result.
+ */
+const PRIOR_RATE = 130;
+const PRIOR_DECISIONS = 90;
 
-export function tierFor(tally: Tally): SkillTier {
-  if (tally.decisions < MIN_DECISIONS_FOR_TIER) return 'novice';
-  const rate = errorRate(tally);
+/**
+ * Error rate pulled towards `priorRate` in proportion to how little evidence
+ * there is. With plenty of decisions the prior washes out and this is just
+ * `errorRate`.
+ */
+export function ratedErrorRate(tally: Tally, priorRate = PRIOR_RATE): number {
+  return (tally.equityLoss * 1000 + priorRate * PRIOR_DECISIONS) / (tally.decisions + PRIOR_DECISIONS);
+}
+
+/** Whether the record is still thin enough that the prior is doing the talking. */
+export function isProvisional(tally: Tally): boolean {
+  return tally.decisions < PRIOR_DECISIONS;
+}
+
+export function tierFor(tally: Tally, priorRate = PRIOR_RATE): SkillTier {
+  const rate = ratedErrorRate(tally, priorRate);
   return TIER_CEILINGS.find((band) => rate < band.ceiling)?.tier ?? 'novice';
 }
 
@@ -113,8 +133,13 @@ const POLICIES: Readonly<Record<SkillTier, Omit<CoachingPolicy, 'tier'>>> = {
  * accordingly in each.
  */
 export function coachingPolicy(progress: PlayerProgress, phase?: GamePhase): CoachingPolicy {
-  const scope = phase ? (progress.byPhase[phase] ?? progress.checker) : progress.checker;
-  const tier = tierFor(scope.decisions >= MIN_DECISIONS_FOR_TIER ? scope : progress.checker);
+  const overall = ratedErrorRate(progress.checker);
+  // A phase seen only a few times falls back on the player's overall standard
+  // rather than on the novice prior, so a rare phase is not coached as if they
+  // had never played at all.
+  const tier = phase
+    ? tierFor(progress.byPhase[phase] ?? { decisions: 0, equityLoss: 0 }, overall)
+    : tierFor(progress.checker);
   return { tier, ...POLICIES[tier] };
 }
 

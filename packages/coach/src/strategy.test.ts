@@ -10,6 +10,7 @@ import {
   mergeProgress,
   progressFromGame,
   tierFor,
+  tierRank,
   trend,
   weakestConcepts,
   weakestPhase,
@@ -136,12 +137,48 @@ describe('progress', () => {
     expect(errorRate({ decisions: 0, equityLoss: 0 })).toBe(0);
   });
 
-  it('withholds a tier until there is enough evidence', () => {
+  it('grades a settled record by its error rate', () => {
+    expect(tierFor({ decisions: 2000, equityLoss: 10 })).toBe('expert');
+    expect(tierFor({ decisions: 2000, equityLoss: 60 })).toBe('strong');
+    expect(tierFor({ decisions: 2000, equityLoss: 100 })).toBe('intermediate');
+    expect(tierFor({ decisions: 2000, equityLoss: 400 })).toBe('novice');
+  });
+
+  it('starts a player with no record as a novice', () => {
+    expect(tierFor({ decisions: 0, equityLoss: 0 })).toBe('novice');
     expect(tierFor({ decisions: 5, equityLoss: 0 })).toBe('novice');
-    expect(tierFor({ decisions: 100, equityLoss: 0.5 })).toBe('expert');
-    expect(tierFor({ decisions: 100, equityLoss: 3 })).toBe('strong');
-    expect(tierFor({ decisions: 100, equityLoss: 5 })).toBe('intermediate');
-    expect(tierFor({ decisions: 100, equityLoss: 20 })).toBe('novice');
+  });
+
+  it('climbs a band at a time rather than jumping on one good game', () => {
+    // A flawless game is about 30 decisions; four of them should not read as
+    // four bands of improvement.
+    const afterGames = (games: number) => tierFor({ decisions: games * 30, equityLoss: 0 });
+
+    expect(afterGames(1)).toBe('improver');
+    expect(afterGames(3)).toBe('intermediate');
+    expect(afterGames(10)).toBe('strong');
+    expect(afterGames(40)).toBe('expert');
+  });
+
+  it('never moves more than one band for a single game', () => {
+    const rates = [0, 0.1, 0.5, 1, 3];
+    for (const perGame of rates) {
+      for (let games = 0; games < 20; games += 1) {
+        const before = tierFor({ decisions: games * 30, equityLoss: games * perGame });
+        const after = tierFor({ decisions: (games + 1) * 30, equityLoss: (games + 1) * perGame });
+        expect(Math.abs(tierRank(after) - tierRank(before))).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it('judges a rarely played phase against the player, not against a beginner', () => {
+    const record: PlayerProgress = {
+      ...EMPTY_PROGRESS,
+      checker: { decisions: 2000, equityLoss: 10 },
+      byPhase: { bearoff: { decisions: 4, equityLoss: 0 } },
+    };
+
+    expect(coachingPolicy(record, 'bearoff').tier).toBe('expert');
   });
 
   it('aggregates a game into phases and concepts', () => {
@@ -216,8 +253,8 @@ describe('adaptive coaching', () => {
   }
 
   it('spoon-feeds a novice and stays quiet for an expert', () => {
-    const novice = coachingPolicy(progressWithRate(100, 20));
-    const expert = coachingPolicy(progressWithRate(100, 0.5));
+    const novice = coachingPolicy(progressWithRate(2000, 400));
+    const expert = coachingPolicy(progressWithRate(2000, 10));
 
     expect(novice.defaultHintLevel).toBeGreaterThan(expert.defaultHintLevel);
     expect(novice.alertThreshold).toBeLessThan(expert.alertThreshold);
@@ -226,14 +263,14 @@ describe('adaptive coaching', () => {
   });
 
   it('raises the suggested opponent as the player improves', () => {
-    expect(coachingPolicy(progressWithRate(100, 20)).suggestedDifficulty).toBe('beginner');
-    expect(coachingPolicy(progressWithRate(100, 0.5)).suggestedDifficulty).toBe('expert');
+    expect(coachingPolicy(progressWithRate(2000, 400)).suggestedDifficulty).toBe('beginner');
+    expect(coachingPolicy(progressWithRate(2000, 10)).suggestedDifficulty).toBe('expert');
   });
 
   it('calibrates per phase, so strength in one does not silence coaching in another', () => {
     const progress: PlayerProgress = {
-      ...progressWithRate(100, 0.5),
-      byPhase: { bearoff: { decisions: 100, equityLoss: 20 } },
+      ...progressWithRate(2000, 10),
+      byPhase: { bearoff: { decisions: 2000, equityLoss: 400 } },
     };
 
     expect(coachingPolicy(progress).tier).toBe('expert');
@@ -281,20 +318,44 @@ describe('end of game review', () => {
   });
 
   it('recognises a promotion', () => {
-    const history: PlayerProgress = { ...EMPTY_PROGRESS, checker: { decisions: 100, equityLoss: 20 } };
-    const clean = Array.from({ length: 200 }, () => turn({ equityLoss: 0 }));
+    const history: PlayerProgress = { ...EMPTY_PROGRESS, checker: { decisions: 2000, equityLoss: 400 } };
+    const clean = Array.from({ length: 4000 }, () => turn({ equityLoss: 0 }));
 
     expect(reviewGame(clean, [], history).levelledUp).toBe(true);
     expect(reviewGame(turns, [], EMPTY_PROGRESS).levelledUp).toBe(false);
   });
 
   it('reports this game separately from the standing assessment', () => {
-    const history: PlayerProgress = { ...EMPTY_PROGRESS, checker: { decisions: 100, equityLoss: 2 } };
+    const history: PlayerProgress = { ...EMPTY_PROGRESS, checker: { decisions: 2000, equityLoss: 60 } };
     const review = reviewGame([turn({ equityLoss: 0.1 })], [], history);
 
     expect(review.tier).toBe('strong');
     expect(review.headline).toMatch(/This game cost 100 millipoints/);
     expect(review.headline).toMatch(/Overall/);
+  });
+
+  it('says the grade is unsettled while the record is thin', () => {
+    const first = reviewGame(turns, [], EMPTY_PROGRESS);
+    expect(first.headline).toMatch(/still settling/);
+
+    const settled: PlayerProgress = { ...EMPTY_PROGRESS, checker: { decisions: 2000, equityLoss: 60 } };
+    expect(reviewGame(turns, [], settled).headline).not.toMatch(/still settling/);
+  });
+
+  it('does not promote a novice to expert on one good game', () => {
+    const clean = Array.from({ length: 30 }, () => turn({ equityLoss: 0 }));
+    const first = reviewGame(clean, [], EMPTY_PROGRESS);
+
+    expect(first.tier).toBe('improver');
+    expect(reviewGame(clean, [], first.progress).tier).toBe('improver');
+  });
+
+  it('marks advice the player has already been given as a repeat', () => {
+    const first = reviewGame(turns, [], EMPTY_PROGRESS);
+    const second = reviewGame(turns, [], first.progress);
+
+    expect(first.focus.some((line) => /keeps recurring|Still your costliest/.test(line))).toBe(false);
+    expect(second.focus.some((line) => /keeps recurring|Still your costliest/.test(line))).toBe(true);
   });
 
   it('carries progress forward so focus survives a single good game', () => {
