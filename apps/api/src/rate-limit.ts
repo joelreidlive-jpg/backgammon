@@ -20,6 +20,15 @@ export async function limitKey(c: Context<{ Bindings: Env }>): Promise<string> {
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
     return `t:${[...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')}`;
   }
+  return ipKey(c);
+}
+
+/**
+ * Identify the caller by address only. Sign-in is throttled this way because a
+ * password guesser can mint a fresh token per attempt, which would give them an
+ * unlimited budget under a token-keyed limit.
+ */
+export function ipKey(c: Context<{ Bindings: Env }>): string {
   return `ip:${c.req.header('cf-connecting-ip') ?? 'unknown'}`;
 }
 
@@ -34,12 +43,13 @@ export async function limitKey(c: Context<{ Bindings: Env }>): Promise<string> {
 export function rateLimit(
   pick: (env: Env) => RateLimiter | undefined,
   retryAfterSeconds: number,
+  key: (c: Context<{ Bindings: Env }>) => string | Promise<string> = limitKey,
 ): MiddlewareHandler<{ Bindings: Env }> {
   return async (c, next) => {
     const limiter = pick(c.env);
     if (!limiter) return next();
 
-    const { success } = await limiter.limit({ key: await limitKey(c) });
+    const { success } = await limiter.limit({ key: await key(c) });
     if (success) return next();
 
     c.header('retry-after', String(retryAfterSeconds));

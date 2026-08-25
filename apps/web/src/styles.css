@@ -1143,3 +1143,73 @@ button.term:focus-visible {
   margin: 0.15rem 0 0;
   color: var(--muted);
 }
+
+.setup-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.account-email {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account {
+  width: min(24rem, 100%);
+  padding: 1rem 1.25rem 1.5rem;
+  border-radius: 0.75rem;
+  background: var(--panel);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+
+.account header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.account header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.account form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.account label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: var(--muted);
+}
+
+.account input {
+  padding: 0.6rem 0.65rem;
+  border: 1px solid #2f3742;
+  border-radius: 6px;
+  background: #10151c;
+  color: inherit;
+  font: inherit;
+}
+
+.account .actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+/* Comfortable to hit on a phone, where signing in most often happens. */
+.account .actions button[type='submit'] {
+  min-height: 44px;
+  padding: 0 1rem;
+}

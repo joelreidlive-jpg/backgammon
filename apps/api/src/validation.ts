@@ -1,7 +1,12 @@
 import { z } from 'zod';
 import type { Move } from '@bg/rules';
 import type { Difficulty } from '@bg/ai';
-import type { CreateMatchRequest, CubeCommand, TrainerAttemptRequest } from '@bg/protocol';
+import type {
+  CreateMatchRequest,
+  CredentialsRequest,
+  CubeCommand,
+  TrainerAttemptRequest,
+} from '@bg/protocol';
 import { MatchError } from './errors.js';
 
 /**
@@ -52,6 +57,16 @@ export const createMatchSchema = z.object({
  * callers who pick the same string share one progress record.
  */
 export const playerTokenSchema = z.string().regex(/^[0-9a-f]{64}$/, 'malformed player token');
+
+/**
+ * Sign-up and sign-in. The length floor is the only password rule: composition
+ * rules push people towards predictable substitutions, and the upper bound is
+ * there because PBKDF2 hashes an unbounded input at the server's expense.
+ */
+export const credentialsSchema = z.object({
+  email: z.email('that does not look like an email').trim().max(254),
+  password: z.string().min(8, 'use at least 8 characters').max(256),
+}) satisfies z.ZodType<CredentialsRequest>;
 
 const problemIdSchema = z.string().min(1).max(128);
 

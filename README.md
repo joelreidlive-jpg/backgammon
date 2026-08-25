@@ -126,7 +126,17 @@ rather than the single game, so one clean game does not erase a habit.
 Progress is keyed to an opaque bearer token held in `localStorage` and stored in
 D1 under a SHA-256 digest of it, so the database never holds the secret. It
 survives across matches with no login, and is lost if the browser is cleared.
-Accounts map onto the same key later without changing anything beneath it.
+
+An account is a way of reaching that same key, not a second identity. Signing in
+returns a session token which the browser uses exactly as an anonymous one, and
+`resolveIdentity` maps it to the account's `player_id` — so progress, completed
+games and trainer attempts are untouched by sign-in, and follow the login to any
+browser. Signing up adopts the anonymous key the browser already holds, unless
+another account owns it, so a visitor's record is not lost when they register.
+Passwords are PBKDF2-SHA256 (210,000 iterations, per-row salt and parameters):
+the only password KDF the Workers runtime offers without a WASM dependency.
+There is no email verification and no password reset, because neither is
+possible without an email provider.
 
 ## The problem trainer
 
@@ -205,8 +215,8 @@ one match.
 - **WebSockets.** Solo play is strictly turn-based, so REST is honest. The
   hibernation API slots in behind the same `applyTurn` path when a second human
   is seated.
-- **Accounts.** Identity is an anonymous device token, so progress does not
-  follow a player to another browser.
+- **Email verification and password reset.** Both need an email provider; until
+  there is one, a forgotten password cannot be recovered.
 - **A neural evaluator.** `Evaluator` is a single function type; a TD-Gammon
   style network can replace the heuristic without touching search, coaching or
   the API.

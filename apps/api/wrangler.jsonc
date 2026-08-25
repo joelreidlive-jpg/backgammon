@@ -37,6 +37,14 @@
         "type": "ratelimit",
         "namespace_id": "1003",
         "simple": { "limit": 120, "period": 60 }
+      },
+      // Sign-in and sign-up: the tightest limit, because here a flood is a
+      // password-guessing attempt rather than an expensive search.
+      {
+        "name": "AUTH_LIMIT",
+        "type": "ratelimit",
+        "namespace_id": "1004",
+        "simple": { "limit": 10, "period": 60 }
       }
     ]
   },

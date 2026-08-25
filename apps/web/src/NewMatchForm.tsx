@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { CreateMatchRequest, Difficulty, ProgressResponse } from '@bg/protocol';
+import { AccountButton } from './Account.js';
 import { ProgressPanel } from './ProgressPanel.js';
 import { ThemePicker } from './ThemePicker.js';
 import { useBoardTheme } from './theme.js';
@@ -42,8 +43,15 @@ export function NewMatchForm({ busy, error, progress, onStart, onTrain, resume }
 
   return (
     <div className="setup">
-      <h1>Backgammon</h1>
+      <div className="setup-head">
+        <h1>Backgammon</h1>
+        {/* Signing in here rather than mid-game: this is where a shared link lands. */}
+        <AccountButton />
+      </div>
       <p className="muted">Play the engine, with a coach watching over your shoulder.</p>
+      <p className="muted">
+        Sign in to keep your progress on any device — otherwise it stays in this browser.
+      </p>
 
       {resume && (
         <div className="resume">

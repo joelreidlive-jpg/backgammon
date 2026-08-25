@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
 import {
   CONCEPT_ADVICE,
@@ -23,21 +23,24 @@ import {
   prompt,
   selectProblem,
 } from '@bg/trainer';
+import { createAccount, resolveIdentity, signIn, signOut, type Identity } from './accounts.js';
 import { MatchError, decodeError } from './errors.js';
 import type { MatchDO } from './match-do.js';
 import type {
+  AuthResponse,
   ProgressResponse,
   TrainerAttemptResponse,
   TrainerProblemResponse,
   TrainerPrompt,
 } from '@bg/protocol';
 import { logFailure, observability } from './observability.js';
-import { loadProgress, newPlayerToken, playerKey, recentGames } from './players.js';
+import { loadProgress, newPlayerToken, recentGames } from './players.js';
 import { gradeRequest } from './grading.js';
-import { rateLimit } from './rate-limit.js';
+import { ipKey, rateLimit } from './rate-limit.js';
 import { loadAttempts, recordAttempt } from './trainer.js';
 import {
   createMatchSchema,
+  credentialsSchema,
   cubeCommandSchema,
   hintLevelSchema,
   parse,
@@ -65,6 +68,27 @@ function token(header: string | undefined): string {
 /** The token the caller holds, or a fresh identity if they hold none. */
 function tokenOrNew(header: string | undefined): string {
   return header === undefined ? newPlayerToken() : token(header);
+}
+
+type Ctx = Context<{ Bindings: Env; Variables: { requestId: string } }>;
+
+/**
+ * Who is calling. A session token resolves to its account's progress key, an
+ * anonymous token to its own digest, so every route below is written against
+ * one identity whether or not the player has signed in.
+ */
+function whoIs(c: Ctx): Promise<Identity> {
+  return resolveIdentity(c.env.DB, token(c.req.header('x-player-token')));
+}
+
+/** As `whoIs`, but mints an anonymous identity for a first-time visitor. */
+function whoIsOrNew(c: Ctx): Promise<Identity> {
+  return resolveIdentity(c.env.DB, tokenOrNew(c.req.header('x-player-token')));
+}
+
+/** The caller's progress key, which is also what authorises their match. */
+async function keyOf(c: Ctx): Promise<string> {
+  return (await whoIs(c)).key;
 }
 
 app.onError((error, c) => {
@@ -107,22 +131,53 @@ app.use(
 app.use('/api/matches', rateLimit((env) => env.MATCH_CREATE_LIMIT, 60));
 app.use('/api/matches/*', rateLimit((env) => env.MATCH_LIMIT, 60));
 app.use('/api/trainer/*', rateLimit((env) => env.TRAINER_LIMIT, 60));
+// Sign-in is the one route where a flood is a password-guessing attempt rather
+// than a cost problem, so it is the tightest limit of the four.
+app.use('/api/auth/*', rateLimit((env) => env.AUTH_LIMIT, 60, ipKey));
+
+app.post('/api/auth/signup', async (c) => {
+  const { email, password } = await parseBody(credentialsSchema, c.req.raw);
+  // Whatever this browser has already played counts: the anonymous key it holds
+  // becomes the account's key, so the first account made here keeps its record.
+  const held = c.req.header('x-player-token');
+  const anonymous = held === undefined ? null : (await resolveIdentity(c.env.DB, token(held))).key;
+  const identity = await createAccount(c.env.DB, email, password, anonymous);
+  const response: AuthResponse = { playerToken: identity.token, email: identity.email };
+  return c.json(response, 201);
+});
+
+app.post('/api/auth/login', async (c) => {
+  const { email, password } = await parseBody(credentialsSchema, c.req.raw);
+  const identity = await signIn(c.env.DB, email, password);
+  const response: AuthResponse = { playerToken: identity.token, email: identity.email };
+  return c.json(response);
+});
+
+app.post('/api/auth/logout', async (c) => {
+  await signOut(c.env.DB, token(c.req.header('x-player-token')));
+  return c.body(null, 204);
+});
+
+// Who the held token belongs to. Anonymous tokens answer with a null address
+// rather than 401: not being signed in is a state, not a failure.
+app.get('/api/auth/me', async (c) => {
+  const identity = await whoIs(c);
+  const response: AuthResponse = { playerToken: identity.token, email: identity.email };
+  return c.json(response);
+});
 
 app.post('/api/matches', async (c) => {
   const body = await parseBody(createMatchSchema, c.req.raw);
   // A returning player sends the token they already hold, which is what makes
   // progress accumulate across matches rather than resetting each time.
-  const playerToken = tokenOrNew(c.req.header('x-player-token'));
+  const identity = await whoIsOrNew(c);
   const matchId = crypto.randomUUID();
-  const { view } = await stub(c.env, matchId).create(matchId, body, {
-    token: playerToken,
-    key: await playerKey(playerToken),
-  });
-  return c.json({ playerToken, match: view }, 201);
+  const { view } = await stub(c.env, matchId).create(matchId, body, identity);
+  return c.json({ playerToken: identity.token, match: view }, 201);
 });
 
 app.get('/api/me/progress', async (c) => {
-  const key = await playerKey(token(c.req.header('x-player-token')));
+  const key = await keyOf(c);
   const progress = await loadProgress(c.env.DB, key);
   const phase = weakestPhase(progress);
 
@@ -146,63 +201,60 @@ app.get('/api/me/progress', async (c) => {
 });
 
 app.get('/api/matches/:id', async (c) => {
-  const view = await stub(c.env, c.req.param('id')).get(token(c.req.header('x-player-token')));
+  const view = await stub(c.env, c.req.param('id')).get(await keyOf(c));
   return c.json(view);
 });
 
 app.post('/api/matches/:id/roll', async (c) => {
-  const view = await stub(c.env, c.req.param('id')).roll(token(c.req.header('x-player-token')));
+  const view = await stub(c.env, c.req.param('id')).roll(await keyOf(c));
   return c.json(view);
 });
 
 app.post('/api/matches/:id/turn', async (c) => {
   const { moves } = await parseBody(submitTurnSchema, c.req.raw);
-  const view = await stub(c.env, c.req.param('id')).submitTurn(token(c.req.header('x-player-token')), moves);
+  const view = await stub(c.env, c.req.param('id')).submitTurn(await keyOf(c), moves);
   return c.json(view);
 });
 
 app.post('/api/matches/:id/opponent', async (c) => {
-  const view = await stub(c.env, c.req.param('id')).opponentReply(token(c.req.header('x-player-token')));
+  const view = await stub(c.env, c.req.param('id')).opponentReply(await keyOf(c));
   return c.json(view);
 });
 
 app.post('/api/matches/:id/cube', async (c) => {
   const { action } = await parseBody(cubeCommandSchema, c.req.raw);
-  const view = await stub(c.env, c.req.param('id')).cube(token(c.req.header('x-player-token')), action);
+  const view = await stub(c.env, c.req.param('id')).cube(await keyOf(c), action);
   return c.json(view);
 });
 
 app.post('/api/matches/:id/next-game', async (c) => {
-  const view = await stub(c.env, c.req.param('id')).nextGame(token(c.req.header('x-player-token')));
+  const view = await stub(c.env, c.req.param('id')).nextGame(await keyOf(c));
   return c.json(view);
 });
 
 app.post('/api/matches/:id/takeback', async (c) => {
-  const view = await stub(c.env, c.req.param('id')).takeback(token(c.req.header('x-player-token')));
+  const view = await stub(c.env, c.req.param('id')).takeback(await keyOf(c));
   return c.json(view);
 });
 
 app.post('/api/matches/:id/play-best', async (c) => {
-  const view = await stub(c.env, c.req.param('id')).playBest(token(c.req.header('x-player-token')));
+  const view = await stub(c.env, c.req.param('id')).playBest(await keyOf(c));
   return c.json(view);
 });
 
 app.get('/api/matches/:id/hint', async (c) => {
   const level = parse(hintLevelSchema, c.req.query('level') ?? '1');
-  const hint = await stub(c.env, c.req.param('id')).hint(
-    token(c.req.header('x-player-token')),
-    level as HintLevel,
-  );
+  const hint = await stub(c.env, c.req.param('id')).hint(await keyOf(c), level as HintLevel);
   return c.json(hint);
 });
 
 app.get('/api/matches/:id/review', async (c) => {
-  const review = await stub(c.env, c.req.param('id')).review(token(c.req.header('x-player-token')));
+  const review = await stub(c.env, c.req.param('id')).review(await keyOf(c));
   return c.json(review);
 });
 
 app.get('/api/matches/:id/history', async (c) => {
-  const history = await stub(c.env, c.req.param('id')).history(token(c.req.header('x-player-token')));
+  const history = await stub(c.env, c.req.param('id')).history(await keyOf(c));
   return c.json(history);
 });
 
@@ -223,8 +275,8 @@ const CUBE_GUIDANCE =
 app.get('/api/trainer/next', async (c) => {
   // The trainer is reachable without ever having played a match, so it mints
   // the identity if the browser does not have one yet.
-  const playerToken = tokenOrNew(c.req.header('x-player-token'));
-  const key = await playerKey(playerToken);
+  const identity = await whoIsOrNew(c);
+  const key = identity.key;
   const [progress, attempts] = await Promise.all([
     loadProgress(c.env.DB, key),
     loadAttempts(c.env.DB, key),
@@ -255,7 +307,7 @@ app.get('/api/trainer/next', async (c) => {
       : null;
 
   const response: TrainerProblemResponse = {
-    playerToken,
+    playerToken: identity.token,
     problem: asked,
     ladder,
     focus: [
@@ -270,7 +322,7 @@ app.get('/api/trainer/next', async (c) => {
 });
 
 app.post('/api/trainer/attempt', async (c) => {
-  const key = await playerKey(token(c.req.header('x-player-token')));
+  const key = await keyOf(c);
   const body = await parseBody(trainerAttemptSchema, c.req.raw);
 
   // Grading happens here, from the stored answer, because the client is never

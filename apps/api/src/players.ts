@@ -3,10 +3,10 @@ import type { Difficulty } from '@bg/ai';
 import type { GameSummary } from '@bg/protocol';
 
 /**
- * A player is identified by an opaque bearer token held in the browser. There
- * are no accounts yet, so this is the whole identity: unguessable, but lost if
- * the browser is cleared. Adding real sign-in later means mapping an account to
- * this same key, not changing anything below it.
+ * A player is identified by a key, and this mints the token that reaches one:
+ * unguessable, and for an anonymous player lost if the browser is cleared. An
+ * account reaches the same key through a session instead (see `accounts.ts`),
+ * so nothing below this line knows whether anyone has signed in.
  */
 export function newPlayerToken(): string {
   const bytes = new Uint8Array(32);
