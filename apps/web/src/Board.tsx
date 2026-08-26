@@ -20,7 +20,7 @@ const CHECKER_RADIUS = Math.min(POINT_WIDTH / 2 - 4, POINT_HEIGHT / (2 * MAX_VIS
 const BAR_X = MARGIN + 6 * POINT_WIDTH;
 const TRAY_X = MARGIN + FELT_WIDTH + 10;
 const TRAY_WIDTH = WIDTH - TRAY_X - MARGIN;
-/** Dice are thrown into a half: yours on the right, the engine's on the left. */
+/** Dice are thrown into a half: yours on the right, the opponent's on the left. */
 const YOUR_DICE_X = BAR_X + BAR_WIDTH + 3 * POINT_WIDTH;
 const ENGINE_DICE_X = MARGIN + 3 * POINT_WIDTH;
 
@@ -44,7 +44,7 @@ interface StackProps {
   baseY: number;
   /** +1 stacks downwards, -1 upwards. */
   direction: 1 | -1;
-  /** Draws attention to the checker on top, as one the engine just moved. */
+  /** Draws attention to the checker on top, as one the opponent just moved. */
   pulsing?: boolean;
 }
 
@@ -433,13 +433,13 @@ export function Board({
         onClick={() => onSelect(bar)}
       />
 
-      {/* Only one side's dice are ever on the felt: yours right, the engine's left. */}
+      {/* Only one side's dice are ever on the felt: yours right, the opponent's left. */}
       <DicePair
         {...opponentDice}
         player={opponent}
         x={ENGINE_DICE_X}
         y={HEIGHT / 2}
-        label="the engine’s dice"
+        label="your opponent’s dice"
       />
       <DicePair
         {...yourDice}

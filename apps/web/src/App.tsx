@@ -17,11 +17,21 @@ import { CoachPanel } from './CoachPanel.js';
 import {
   type BetterMoveEvent,
   type BetterMoveState,
+  betterMoveOffered,
   isPreviewing,
   nextBetterMoveState,
   previewBoard,
   previewDestinations,
 } from './betterMove.js';
+import {
+  type DrawerState,
+  DRAWER_SHUT,
+  drawerSignal,
+  onOpen,
+  onShut,
+  onSignal,
+} from './coachDrawer.js';
+import { useCompact } from './compact.js';
 import { type ReplayStep, PULSE_MS, enginePlaySteps } from './enginePlay.js';
 import { type ReplyTiming, ReplyScheduler, replyTiming } from './engineReply.js';
 import { NewMatchForm } from './NewMatchForm.js';
@@ -94,6 +104,9 @@ export function App() {
   const replyScheduler = useRef(new ReplyScheduler());
   // A stored match the player has not yet said they want back.
   const [resumable, setResumable] = useState<MatchView | null>(null);
+  // On a phone the coach is a drawer at the edge rather than a column.
+  const compact = useCompact();
+  const [drawer, setDrawer] = useState<DrawerState>(DRAWER_SHUT);
 
   const adopt = useCallback((next: MatchView) => {
     touchSession();
@@ -255,6 +268,21 @@ export function App() {
     setBetterMove('hidden');
   }, [currentPosition]);
 
+  // Whether the coach has anything worth opening the drawer for: an offer of a
+  // better move, or a verdict on a cube decision.
+  const cubeVerdict = view?.lastCubeAnalysis ?? null;
+  const coachSpoke =
+    view !== null &&
+    view.coaching &&
+    ((betterMove !== 'played' && betterMoveOffered(analysis, view.policy)) ||
+      (cubeVerdict !== null &&
+        cubeVerdict.mistake !== 'none' &&
+        cubeVerdict.mistake !== 'undecided'));
+  const signal = drawerSignal(currentPosition, coachSpoke);
+  useEffect(() => {
+    setDrawer((state) => onSignal(state, signal, coachSpoke));
+  }, [signal, coachSpoke]);
+
   const sources = useMemo(
     () => new Set(builder?.options.map((move) => move.from) ?? []),
     [builder],
@@ -382,10 +410,31 @@ export function App() {
     setSelected(sources.has(slot) ? slot : null);
   };
 
+  const coach = (
+    <CoachPanel
+      enabled={view.coaching}
+      canAsk={yourTurn && state.phase === 'move' && !busy}
+      canTakeback={view.canTakeback}
+      analysis={analysis}
+      cubeAnalysis={view.lastCubeAnalysis}
+      policy={view.policy}
+      position={currentPosition}
+      betterMove={betterMove}
+      canPlayBest={view.canPlayBest && !busy}
+      engineHeld={timing.reply === 'hold'}
+      onBetterMove={onBetterMove}
+      onHint={(level: HintLevel) => api.hint(session, level)}
+      onTakeback={() => void run(() => api.takeback(session))}
+    />
+  );
+
   return (
     <div className="app">
       <header>
-        <h1>Backgammon</h1>
+        {!compact && <h1>Backgammon</h1>}
+        {/* On a phone the header is the score and the way out, nothing more:
+            the account, the themes and the glossary all belong to the screens
+            that have room for them. */}
         <div className="scoreline">
           <span>
             You {state.score[seat]} — {state.score[seat === 'white' ? 'black' : 'white']}{' '}
@@ -409,9 +458,13 @@ export function App() {
           >
             New match
           </button>
-          <ThemePicker theme={boardTheme} onChange={setBoardTheme} />
-          <GlossaryButton />
-          <AccountButton />
+          {!compact && (
+            <>
+              <ThemePicker theme={boardTheme} onChange={setBoardTheme} />
+              <GlossaryButton />
+              <AccountButton />
+            </>
+          )}
           <FullscreenButton />
         </div>
       </header>
@@ -468,7 +521,10 @@ export function App() {
         <section className="controls">
           {error && <p className="error">{error}</p>}
 
-          {view.aiPlays.length > 0 && (
+          {/* The opponent's play is replayed on the board a checker at a time,
+              so on a phone the notation is a line of text the board can have
+              instead. */}
+          {!compact && view.aiPlays.length > 0 && (
             <p className="ai-play">
               Opponent played <strong>{view.aiPlays.map((play) => play.notation).join(', ')}</strong>
             </p>
@@ -476,7 +532,7 @@ export function App() {
 
           {state.phase === 'match-over' && (
             <p className="result">
-              {state.matchWinner === seat ? 'You win the match.' : 'The engine wins the match.'}
+              {state.matchWinner === seat ? 'You win the match.' : 'Your opponent wins the match.'}
             </p>
           )}
 
@@ -503,7 +559,7 @@ export function App() {
 
           {state.phase === 'respond-to-double' && state.pendingDouble !== seat && (
             <div className="cube-offer">
-              <p>The engine doubles to {state.cube.value * 2}.</p>
+              <p>Your opponent doubles to {state.cube.value * 2}.</p>
               <button type="button" disabled={busy} onClick={() => void run(() => api.cube(session, 'take'))}>
                 Take
               </button>
@@ -513,25 +569,29 @@ export function App() {
             </div>
           )}
 
-          {state.phase === 'roll' &&
-            (yourTurn ? (
-              <div className="roll-controls">
-                <button type="button" disabled={busy} onClick={roll}>
-                  Roll
+          {state.phase === 'roll' && !yourTurn && (
+            <p className="muted">Waiting for your opponent…</p>
+          )}
+
+          {/* Both of these are on the board itself: the dice are thrown by
+              tapping them, and the cube is doubled by tapping it. The buttons
+              are the wider screen's belt and braces. */}
+          {state.phase === 'roll' && yourTurn && !compact && (
+            <div className="roll-controls">
+              <button type="button" disabled={busy} onClick={roll}>
+                Roll
+              </button>
+              {view.canDouble && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void run(() => api.cube(session, 'double'))}
+                >
+                  Double to {state.cube.value * 2}
                 </button>
-                {view.canDouble && (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void run(() => api.cube(session, 'double'))}
-                  >
-                    Double to {state.cube.value * 2}
-                  </button>
-                )}
-              </div>
-            ) : (
-              <p className="muted">Waiting for the engine…</p>
-            ))}
+              )}
+            </div>
+          )}
 
           {yourTurn && builder && builder.pending.length > 0 && (
             <button type="button" className="link" onClick={() => setBuilder(undoLastMove(builder))}>
@@ -549,21 +609,21 @@ export function App() {
           )}
         </section>
 
-        <CoachPanel
-          enabled={view.coaching}
-          canAsk={yourTurn && state.phase === 'move' && !busy}
-          canTakeback={view.canTakeback}
-          analysis={analysis}
-          cubeAnalysis={view.lastCubeAnalysis}
-          policy={view.policy}
-          position={currentPosition}
-          betterMove={betterMove}
-          canPlayBest={view.canPlayBest && !busy}
-          engineHeld={timing.reply === 'hold'}
-          onBetterMove={onBetterMove}
-          onHint={(level: HintLevel) => api.hint(session, level)}
-          onTakeback={() => void run(() => api.takeback(session))}
-        />
+        {compact ? (
+          <div className={drawer.open ? 'coach-drawer open' : 'coach-drawer'}>
+            <button
+              type="button"
+              className={drawer.unread ? 'coach-tab unread' : 'coach-tab'}
+              aria-expanded={drawer.open}
+              onClick={() => setDrawer(drawer.open ? onShut(drawer) : onOpen(drawer))}
+            >
+              {drawer.open ? 'Close' : 'Coach'}
+            </button>
+            {drawer.open && coach}
+          </div>
+        ) : (
+          coach
+        )}
       </main>
 
       {review && (state.phase === 'game-over' || state.phase === 'match-over') && (

@@ -45,7 +45,7 @@ export interface CoachPanelProps {
   betterMove: BetterMoveState;
   /** True while the coach's play can still replace the one that was made. */
   canPlayBest: boolean;
-  /** True while the engine is waiting on the player to answer the coach. */
+  /** True while the opponent is waiting on the player to answer the coach. */
   engineHeld: boolean;
   onBetterMove: (event: BetterMoveEvent) => void;
   onHint: (level: HintLevel) => Promise<Hint>;
@@ -101,7 +101,7 @@ export function CoachPanel({
   };
 
   // Hint levels escalate deliberately: the answer is the last resort, so the
-  // player has to think before the engine tells them what to do. Where a
+  // player has to think before the coach tells them what to do. Where a
   // stronger player starts is set by the server from their record.
   const nextLevel = Math.min(3, hint ? hint.level + 1 : policy.defaultHintLevel) as OfferedHint;
 
@@ -149,7 +149,7 @@ export function CoachPanel({
                 <button type="button" onClick={() => onBetterMove('show')}>
                   Show me the better move
                 </button>
-                {/* The engine waits on the coach being answered, so there has
+                {/* The opponent waits on the coach being answered, so there has
                     to be a way of answering "nothing, thanks". */}
                 {engineHeld && (
                   <button type="button" className="link" onClick={() => onBetterMove('dismiss')}>
@@ -183,7 +183,7 @@ export function CoachPanel({
                     Keep my move
                   </button>
                 </div>
-                <p className="muted">The engine waits until you choose.</p>
+                <p className="muted">Your opponent waits until you choose.</p>
               </>
             )}
             {betterMove === 'failed' && (

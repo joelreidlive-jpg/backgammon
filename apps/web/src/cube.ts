@@ -27,6 +27,6 @@ export function cubeLabel(value: number, owner: Player | null, seat: Player, off
       ? 'centred'
       : cubeSide(owner, seat) === 'yours'
         ? 'yours'
-        : 'the engine’s';
+        : 'your opponent’s';
   return `doubling cube at ${value}, ${held}`;
 }
