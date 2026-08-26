@@ -16,7 +16,7 @@ import {
   weakestConcepts,
   weakestPhase,
 } from './progress.js';
-import { CONCEPT_ADVICE, CUBE_ADVICE, PHASE_GUIDANCE } from './strategy.js';
+import { CUBE_ADVICE, conceptAdvice, phaseAdvice } from './strategy.js';
 
 export interface PhaseReport {
   readonly phase: GamePhase;
@@ -44,6 +44,7 @@ export interface GameReview {
   readonly errorRate: number;
   readonly tier: SkillTier;
   readonly headline: string;
+  readonly standing: string;
   readonly byPhase: readonly PhaseReport[];
   readonly leaks: readonly LeakReport[];
   readonly cube: CubeReport;
@@ -60,31 +61,83 @@ export interface GameReview {
 const WORST_MOMENTS = 3;
 const MAX_LEAKS = 3;
 
-/**
- * The rate is this game's; the tier is the player's standing record. Keeping
- * them distinct matters, because one good or bad game should not read as a
- * change in the player's level.
- */
-function headlineFor(tier: SkillTier, rate: number, standing: Tally): string {
-  const rounded = Math.round(rate);
-  const assessment: Readonly<Record<SkillTier, string>> = {
-    expert:
-      'Overall you are playing near-flawlessly; the remaining gains are in cube handling and match equity rather than checker play.',
-    strong:
-      'Overall your checker play is strong; what separates you from expert is consistency in the phases you find awkward.',
-    intermediate:
-      'Overall you are solid: you know the shapes, and lose equity by not applying them consistently under pressure.',
-    improver:
-      'Overall you are improving: the plans are mostly right and the execution slips in specific, fixable places.',
-    novice:
-      'Work on one idea at a time — the biggest single gain at this stage is making your 5-point whenever you can.',
-  };
+const ASSESSMENT: Readonly<Record<SkillTier, string>> = {
+  expert:
+    'Overall you are playing near-flawlessly; the remaining gains are in cube handling and match equity rather than checker play.',
+  strong:
+    'Overall your checker play is strong; what separates you from expert is consistency in the phases you find awkward.',
+  intermediate:
+    'Overall you are solid: you know the shapes, and lose equity by not applying them consistently under pressure.',
+  improver:
+    'Overall you are improving: the plans are mostly right and the execution slips in specific, fixable places.',
+  novice:
+    'Work on one idea at a time — the biggest single gain at this stage is making your 5-point whenever you can.',
+};
+
+const PHASE_NAMES: Readonly<Record<GamePhase, string>> = {
+  opening: 'opening',
+  middlegame: 'middlegame',
+  holding: 'holding game',
+  race: 'race',
+  bearoff: 'bear-off',
+};
+
+function standingFor(tier: SkillTier, standing: Tally): string {
   // Say so while the grade rests mostly on the prior, or a player who wins one
   // clean game reads a confident verdict drawn from barely any evidence.
   const caveat = isProvisional(standing)
     ? ` Your grade is still settling — it is based on ${standing.decisions} decision${standing.decisions === 1 ? '' : 's'} so far, and will move as you play more.`
     : '';
-  return `This game cost ${rounded} millipoints per decision. ${assessment[tier]}${caveat}`;
+  return `${ASSESSMENT[tier]}${caveat}`;
+}
+
+function headlineFor(
+  rate: number,
+  history: PlayerProgress,
+  turns: readonly TurnAnalysis[],
+  cubes: readonly CubeAnalysis[],
+  delta: PlayerProgress,
+  levelledUp: boolean,
+  tier: SkillTier,
+): string {
+  const sentences = [`This game cost ${Math.round(rate)} millipoints per decision.`];
+  const errorRateHistory = history.errorRateHistory ?? [];
+  if (errorRateHistory.length >= 1) {
+    const recentEntries = errorRateHistory.slice(-5);
+    const recent = recentEntries.reduce((sum, value) => sum + value, 0) / recentEntries.length;
+    const difference = rate - recent;
+    const tolerance = Math.max(5, 0.15 * recent);
+    if (Math.abs(difference) < tolerance) {
+      sentences.push(`In line with your recent ${Math.round(recent)}.`);
+    } else if (difference < 0) {
+      sentences.push(`Better than your recent ${Math.round(recent)}.`);
+    } else {
+      sentences.push(`Worse than your recent ${Math.round(recent)}.`);
+    }
+  }
+
+  const decisions = [...turns, ...cubes];
+  const totalLoss = delta.checker.equityLoss + delta.cube.equityLoss;
+  if (!decisions.some((decision) => decision.severity !== 'fine')) {
+    sentences.push('Nothing above an inaccuracy all game.');
+  } else {
+    const worst = [...decisions].sort((a, b) => b.equityLoss - a.equityLoss)[0];
+    if (worst !== undefined && worst.equityLoss >= 0.4 * totalLoss) {
+      sentences.push(`One ${worst.severity} in the ${PHASE_NAMES[worst.phase]} accounted for most of it.`);
+    } else {
+      const phase = Object.entries(delta.byPhase)
+        .filter((entry): entry is [GamePhase, Tally] => entry[1] !== undefined)
+        .sort((a, b) => b[1].equityLoss - a[1].equityLoss)[0];
+      if (phase !== undefined) {
+        sentences.push(
+          `Most of it went in the ${PHASE_NAMES[phase[0]]}: ${Math.round(phase[1].equityLoss * 1000)} of ${Math.round(totalLoss * 1000)} millipoints.`,
+        );
+      }
+    }
+  }
+
+  if (levelledUp) sentences.push(`That moves you up to ${tier}.`);
+  return sentences.join(' ');
 }
 
 /**
@@ -101,14 +154,22 @@ export function reviewGame(
   matchCompleted = false,
 ): GameReview {
   const delta = progressFromGame(turns, cubes, matchCompleted);
-  const progress = mergeProgress(history, delta);
+  const progressWithoutAdvice = mergeProgress(history, delta);
 
   const combined: Tally = {
     decisions: delta.checker.decisions + delta.cube.decisions,
     equityLoss: delta.checker.equityLoss + delta.cube.equityLoss,
   };
   const rate = errorRate(combined);
-  const tier = tierFor(progress.checker);
+  const tier = tierFor(progressWithoutAdvice.checker);
+  const levelledUp = tierRank(tier) > tierRank(tierFor(history.checker));
+  const advisedHistory = history.advised ?? {};
+  const shownAdvice = new Set<string>();
+  const adviceIndex = (key: string): number => advisedHistory[key] ?? 0;
+  const markAdvice = (key: string) => {
+    shownAdvice.add(key);
+  };
+  const phasesInReview = new Set<GamePhase>();
 
   const byPhase: PhaseReport[] = Object.entries(delta.byPhase)
     .filter((entry): entry is [string, Tally] => entry[1] !== undefined)
@@ -116,9 +177,13 @@ export function reviewGame(
       phase: phase as GamePhase,
       decisions: tally.decisions,
       errorRate: errorRate(tally),
-      guidance: PHASE_GUIDANCE[phase as GamePhase],
+      guidance: phaseAdvice(phase as GamePhase, adviceIndex(`phase:${phase}`)),
     }))
     .sort((a, b) => b.errorRate - a.errorRate);
+  for (const phase of byPhase) {
+    phasesInReview.add(phase.phase);
+    markAdvice(`phase:${phase.phase}`);
+  }
 
   const leaks: LeakReport[] = Object.entries(delta.byConcept)
     .filter((entry) => entry[1] !== undefined && entry[1].equityLoss > 0)
@@ -128,13 +193,19 @@ export function reviewGame(
       concept: concept as Concept,
       occurrences: tally?.missed ?? 0,
       equityLoss: tally?.equityLoss ?? 0,
-      advice: CONCEPT_ADVICE[concept as Concept],
+      advice: conceptAdvice(concept as Concept, adviceIndex(`concept:${concept}`)),
     }));
+  for (const leak of leaks) markAdvice(`concept:${leak.concept}`);
 
   const cubeAdvice = Object.keys(delta.cubeMistakes)
     .filter((mistake): mistake is CubeMistake => isCubeMistake(mistake as CubeMistake))
     .map((mistake) => CUBE_ADVICE[mistake])
     .filter((advice) => advice.length > 0);
+  for (const mistake of Object.keys(delta.cubeMistakes)) {
+    if (isCubeMistake(mistake as CubeMistake) && CUBE_ADVICE[mistake as CubeMistake].length > 0) {
+      markAdvice(`cube:${mistake}`);
+    }
+  }
 
   const worstMoments = [...turns]
     .filter((turn) => turn.severity !== 'fine')
@@ -144,30 +215,45 @@ export function reviewGame(
   // Focus is drawn from the cumulative record rather than this one game, so a
   // single clean game does not erase a habit and one bad game does not become
   // the whole curriculum.
-  const focusPhase = weakestPhase(progress);
+  const focusPhase = weakestPhase(progressWithoutAdvice);
   // Advice that has already been given once reads as a stuck record unless it
   // says that it is a repeat, which is itself the point: the leak survived.
   const focus = [
     ...(focusPhase
       ? [
           focusPhase === weakestPhase(history)
-            ? `Still your costliest phase. ${PHASE_GUIDANCE[focusPhase]}`
-            : PHASE_GUIDANCE[focusPhase],
+            ? `Still your costliest phase. ${phaseAdvice(
+                focusPhase,
+                adviceIndex(`phase:${focusPhase}`) + (phasesInReview.has(focusPhase) ? 1 : 0),
+              )}`
+            : phaseAdvice(
+                focusPhase,
+                adviceIndex(`phase:${focusPhase}`) + (phasesInReview.has(focusPhase) ? 1 : 0),
+              ),
         ]
       : []),
-    ...weakestConcepts(progress, 2).map((concept) =>
-      (history.byConcept[concept]?.missed ?? 0) > 0
-        ? `This keeps recurring. ${CONCEPT_ADVICE[concept]}`
-        : CONCEPT_ADVICE[concept],
-    ),
-    ...cubeAdvice.slice(0, 1),
+    ...weakestConcepts(progressWithoutAdvice, 2).map((concept) => {
+      const repeated = leaks.some((leak) => leak.concept === concept);
+      const advice = conceptAdvice(concept, adviceIndex(`concept:${concept}`) + (repeated ? 1 : 0));
+      markAdvice(`concept:${concept}`);
+      return (history.byConcept[concept]?.missed ?? 0) > 0
+        ? `This keeps recurring. ${advice}`
+        : advice;
+    }),
   ];
+  if (focusPhase !== null) markAdvice(`phase:${focusPhase}`);
+
+  const progress = mergeProgress(history, {
+    ...delta,
+    advised: Object.fromEntries([...shownAdvice].map((key) => [key, 1])),
+  });
 
   return {
     decisions: combined.decisions,
     errorRate: rate,
     tier,
-    headline: headlineFor(tier, rate, progress.checker),
+    headline: headlineFor(rate, history, turns, cubes, delta, levelledUp, tier),
+    standing: standingFor(tier, progress.checker),
     byPhase,
     leaks,
     cube: {
@@ -179,7 +265,7 @@ export function reviewGame(
     worstMoments,
     focus,
     progress,
-    levelledUp: tierRank(tier) > tierRank(tierFor(history.checker)),
+    levelledUp,
     trend: trend(progress),
   };
 }

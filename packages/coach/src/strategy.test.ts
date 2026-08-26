@@ -331,15 +331,69 @@ describe('end of game review', () => {
 
     expect(review.tier).toBe('strong');
     expect(review.headline).toMatch(/This game cost 100 millipoints/);
-    expect(review.headline).toMatch(/Overall/);
+    expect(review.headline).not.toMatch(/Overall/);
+    expect(review.standing).toMatch(/Overall/);
   });
 
   it('says the grade is unsettled while the record is thin', () => {
     const first = reviewGame(turns, [], EMPTY_PROGRESS);
-    expect(first.headline).toMatch(/still settling/);
+    expect(first.standing).toMatch(/still settling/);
 
     const settled: PlayerProgress = { ...EMPTY_PROGRESS, checker: { decisions: 2000, equityLoss: 60 } };
-    expect(reviewGame(turns, [], settled).headline).not.toMatch(/still settling/);
+    expect(reviewGame(turns, [], settled).standing).not.toMatch(/still settling/);
+  });
+
+  it('compares this game with the recent average', () => {
+    const history: PlayerProgress = { ...EMPTY_PROGRESS, errorRateHistory: [50, 70, 60, 40, 80] };
+
+    expect(reviewGame([turn({ equityLoss: 0.04 })], [], history).headline).toContain('Better than your recent 60.');
+    expect(reviewGame([turn({ equityLoss: 0.1 })], [], history).headline).toContain('Worse than your recent 60.');
+    expect(reviewGame([turn({ equityLoss: 0.06 })], [], history).headline).toContain('In line with your recent 60.');
+  });
+
+  it('describes what drove the game from its decisions', () => {
+    const clean = reviewGame([turn({ equityLoss: 0 })], [], EMPTY_PROGRESS);
+    expect(clean.headline).toContain('Nothing above an inaccuracy all game.');
+
+    const oneWorst = reviewGame(
+      [turn({ equityLoss: 0.3, severity: 'blunder', phase: 'race' }), turn({ equityLoss: 0.1, severity: 'error' })],
+      [],
+      EMPTY_PROGRESS,
+    );
+    expect(oneWorst.headline).toContain('One blunder in the race accounted for most of it.');
+
+    const spread = reviewGame(
+      [
+        turn({ equityLoss: 0.2, severity: 'blunder', phase: 'middlegame' }),
+        turn({ equityLoss: 0.2, severity: 'blunder', phase: 'middlegame' }),
+        turn({ equityLoss: 0.2, severity: 'blunder', phase: 'opening' }),
+      ],
+      [],
+      EMPTY_PROGRESS,
+    );
+    expect(spread.headline).toContain('Most of it went in the middlegame: 400 of 600 millipoints.');
+  });
+
+  it('rotates phase advice across consecutive reviews', () => {
+    const game = [turn({ equityLoss: 0.1, phase: 'opening' })];
+    const first = reviewGame(game, [], EMPTY_PROGRESS);
+    const second = reviewGame(game, [], first.progress);
+    const third = reviewGame(game, [], second.progress);
+
+    const guidance = [first.byPhase[0].guidance, second.byPhase[0].guidance, third.byPhase[0].guidance];
+    expect(new Set(guidance).size).toBe(3);
+  });
+
+  it('does not repeat an advice paragraph within one review', () => {
+    const review = reviewGame(
+      [turn({ equityLoss: 0.2, severity: 'blunder', phase: 'opening', missed: ['makesPoint'] })],
+      [],
+      EMPTY_PROGRESS,
+    );
+
+    for (const paragraph of [...review.byPhase.map((phase) => phase.guidance), ...review.leaks.map((leak) => leak.advice)]) {
+      expect(review.focus.every((line) => !line.includes(paragraph))).toBe(true);
+    }
   });
 
   it('does not promote a novice to expert on one good game', () => {

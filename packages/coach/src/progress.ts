@@ -31,6 +31,8 @@ export interface PlayerProgress {
   readonly byPhase: Readonly<Partial<Record<GamePhase, Tally>>>;
   readonly byConcept: Readonly<Partial<Record<Concept, ConceptTally>>>;
   readonly cubeMistakes: Readonly<Partial<Record<CubeMistake, number>>>;
+  /** Number of times each rotating advice item has been shown. */
+  readonly advised: Readonly<Partial<Record<string, number>>>;
   /** Error rate after each completed game, oldest first. Capped in length. */
   readonly errorRateHistory: readonly number[];
 }
@@ -43,6 +45,7 @@ export const EMPTY_PROGRESS: PlayerProgress = {
   byPhase: {},
   byConcept: {},
   cubeMistakes: {},
+  advised: {},
   errorRateHistory: [],
 };
 
@@ -221,6 +224,7 @@ export function progressFromGame(
     byPhase,
     byConcept,
     cubeMistakes,
+    advised: {},
     errorRateHistory: [errorRate(addTally(checker, cube))],
   };
 }
@@ -246,6 +250,11 @@ export function mergeProgress(base: PlayerProgress, delta: PlayerProgress): Play
     cubeMistakes[mistake as CubeMistake] = (cubeMistakes[mistake as CubeMistake] ?? 0) + (count ?? 0);
   }
 
+  const advised: Partial<Record<string, number>> = { ...(base.advised ?? {}) };
+  for (const [key, count] of Object.entries(delta.advised ?? {})) {
+    advised[key] = (advised[key] ?? 0) + (count ?? 0);
+  }
+
   return {
     games: base.games + delta.games,
     matches: base.matches + delta.matches,
@@ -254,6 +263,7 @@ export function mergeProgress(base: PlayerProgress, delta: PlayerProgress): Play
     byPhase,
     byConcept,
     cubeMistakes,
+    advised,
     errorRateHistory: [...base.errorRateHistory, ...delta.errorRateHistory].slice(-HISTORY_LIMIT),
   };
 }

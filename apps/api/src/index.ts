@@ -1,8 +1,8 @@
 import { Hono, type Context } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
 import {
-  CONCEPT_ADVICE,
-  PHASE_GUIDANCE,
+  conceptAdvice,
+  phaseAdvice,
   type HintLevel,
   coachingPolicy,
   errorRate,
@@ -192,8 +192,8 @@ app.get('/api/me/progress', async (c) => {
     policy: coachingPolicy(progress),
     weakestPhase: phase,
     focus: [
-      ...(phase ? [PHASE_GUIDANCE[phase]] : []),
-      ...weakestConcepts(progress, 2).map((concept) => CONCEPT_ADVICE[concept]),
+      ...(phase ? [phaseAdvice(phase)] : []),
+      ...weakestConcepts(progress, 2).map((concept) => conceptAdvice(concept)),
     ],
     recentGames: await recentGames(c.env.DB, key),
   };
@@ -309,9 +309,9 @@ app.get('/api/trainer/next', async (c) => {
     problem: asked,
     ladder,
     focus: [
-      ...(loadedCube ? [CUBE_GUIDANCE, PHASE_GUIDANCE[loadedCube.phase]] : []),
-      ...(problem ? [PHASE_GUIDANCE[problem.phase]] : []),
-      ...weakConcepts.slice(0, 2).map((concept) => CONCEPT_ADVICE[concept]),
+      ...(loadedCube ? [CUBE_GUIDANCE, phaseAdvice(loadedCube.phase)] : []),
+      ...(problem ? [phaseAdvice(problem.phase)] : []),
+      ...weakConcepts.slice(0, 2).map((concept) => conceptAdvice(concept)),
     ],
     attempted: attempts.length,
     solved: attempts.filter((attempt) => attempt.solved).length,

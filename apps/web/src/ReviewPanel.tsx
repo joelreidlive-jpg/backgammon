@@ -40,6 +40,9 @@ export function ReviewPanel({ review }: { review: GameReview }) {
         <Glossed>{review.headline}</Glossed>
       </p>
       <p className="muted">
+        <Glossed>{review.standing}</Glossed>
+      </p>
+      <p className="muted">
         {review.decisions} decision{review.decisions === 1 ? '' : 's'} · {millipoints(review.errorRate)}{' '}
         millipoints lost per decision
       </p>
