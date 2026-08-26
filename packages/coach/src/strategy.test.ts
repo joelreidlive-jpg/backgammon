@@ -315,6 +315,7 @@ describe('end of game review', () => {
 
     expect(review.cube.decisions).toBe(1);
     expect(review.cube.advice[0]).toMatch(/pass/i);
+    expect(review.focus).toContain(review.cube.advice[0]);
   });
 
   it('recognises a promotion', () => {
@@ -382,6 +383,16 @@ describe('end of game review', () => {
 
     const guidance = [first.byPhase[0].guidance, second.byPhase[0].guidance, third.byPhase[0].guidance];
     expect(new Set(guidance).size).toBe(3);
+  });
+
+  it('advances past both phase variants consumed in one review', () => {
+    const game = [turn({ equityLoss: 0.1, phase: 'opening' })];
+    const first = reviewGame(game, [], EMPTY_PROGRESS);
+    const second = reviewGame(game, [], first.progress);
+
+    expect(first.progress.advised['phase:opening']).toBe(2);
+    expect(second.byPhase[0].guidance).not.toBe(first.byPhase[0].guidance);
+    expect(second.byPhase[0].guidance).not.toBe(first.focus[0]);
   });
 
   it('does not repeat an advice paragraph within one review', () => {

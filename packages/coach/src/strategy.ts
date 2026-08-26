@@ -51,7 +51,7 @@ export const CONCEPT_ADVICE: Readonly<Record<Concept, readonly string[]>> = {
   ],
   buildsPrime: [
     'You are not extending your prime. Consecutive made points trap back checkers; four in a row is worth far more than four scattered points.',
-    'Build from the front of the prime, not the back. A longer prime takes away more landing points and gives your back checker less room to escape.',
+    "Extend the prime at the end nearest your opponent's back checkers. A point made behind them traps nothing.",
   ],
   escapesBackChecker: [
     'Your back checkers stay back too long. A checker still on the 24-point in the middlegame is usually the thing that loses you the game.',
@@ -59,7 +59,7 @@ export const CONCEPT_ADVICE: Readonly<Record<Concept, readonly string[]>> = {
   ],
   anchorsInOpponentHome: [
     'You are missing anchors. An advanced anchor gives you a safe landing spot and the freedom to play aggressively everywhere else.',
-    'If you cannot make a point, secure the deepest safe anchor available. An anchor lets you wait for a shot without leaving the board open.',
+    'Take the highest anchor on offer. The 20- and 18-points let you play on everywhere else; an anchor on the ace point mostly just postpones the loss.',
   ],
   leavesBlot: [
     'You leave more blots than you need to. Before playing, count how many numbers hit you — if the play gains little, take the safe one.',
@@ -83,7 +83,7 @@ export const CONCEPT_ADVICE: Readonly<Record<Concept, readonly string[]>> = {
   ],
   bearsOff: [
     'You are not taking checkers off when you safely could. In a pure race, off is always progress.',
-    'Take a checker off only after checking the next roll\u2019s gap. Keeping a spare on a higher point can prevent a forced extra move later.',
+    'In a race with no contact, take the checkers off. Keeping a spare back to smooth a later roll only earns anything while your opponent can still hit you.',
   ],
 };
 
