@@ -1,6 +1,7 @@
 import {
   type Board,
   type Player,
+  barSlot,
   checkersAt,
   direction,
   distanceToOff,
@@ -21,6 +22,7 @@ export interface HeuristicWeights {
   checkerOnBar: number;
   borneOff: number;
   trappedBackChecker: number;
+  containment: number;
   stack: number;
   builder: number;
 }
@@ -40,6 +42,8 @@ export const DEFAULT_WEIGHTS: HeuristicWeights = {
   borneOff: 0.07,
   /** Penalty for checkers stuck deep in the opponent's home board. */
   trappedBackChecker: 0.05,
+  /** Penalty per back checker with nowhere to run, at full containment. */
+  containment: 0.70,
   /** Penalty per checker beyond three on a single point. */
   stack: 0.04,
   /** Reward per spare checker bearing on a point worth making. */
@@ -132,6 +136,41 @@ function blotExposure(board: Board, player: Player): number {
   return exposure;
 }
 
+/**
+ * How completely the player's back checkers are shut in, in checkers' worth of
+ * full containment.
+ *
+ * A back checker is only as bad as the board in front of it: two on the
+ * opponent's ace point behind a six prime cannot move at all, while the same
+ * two behind an empty outfield are a running position. The flat back-checker
+ * penalty cannot tell those apart, which is why a primed-out player could show
+ * a level pip count and read as a take when they win one game in twenty.
+ *
+ * Counted as the opponent's made points among the six slots the checker would
+ * land on, squared so that a broken prime — where the sixes get out — is worth
+ * far less than a closed one.
+ */
+function containment(board: Board, player: Player): number {
+  const step = direction(player);
+  let total = 0;
+
+  for (const slot of homeSlots(opponent(player)).concat(barSlot(player))) {
+    const here = checkersAt(board, player, slot);
+    if (here === 0) continue;
+
+    let blocked = 0;
+    for (let pips = 1; pips <= 6; pips++) {
+      const landing = slot + pips * step;
+      if (landing < 1 || landing > 24) continue;
+      if (checkersAt(board, opponent(player), landing) >= 2) blocked += 1;
+    }
+
+    total += here * (blocked / 6) ** 2;
+  }
+
+  return total;
+}
+
 function trappedBackCheckers(board: Board, player: Player): number {
   let count = 0;
   for (const slot of homeSlots(opponent(player))) {
@@ -160,6 +199,7 @@ function positionalScore(board: Board, player: Player, weights: HeuristicWeights
     weights.blotDanger * blotExposure(board, player) -
     weights.checkerOnBar * board.bar[player] -
     weights.trappedBackChecker * trappedBackCheckers(board, player) -
+    weights.containment * containment(board, player) -
     weights.stack * stackWaste(board, player)
   );
 }
