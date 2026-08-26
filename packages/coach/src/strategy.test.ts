@@ -301,20 +301,37 @@ describe('end of game review', () => {
     expect(review.worstMoments[0].equityLoss).toBe(0.3);
   });
 
-  it('gives phase-specific guidance for the phases actually played', () => {
+  it('scores the phases actually played, costliest first', () => {
     const review = reviewGame(turns, [], EMPTY_PROGRESS);
     const phases = review.byPhase.map((p) => p.phase);
 
     expect(phases).toContain('middlegame');
     expect(phases).toContain('bearoff');
-    expect(review.byPhase[0].guidance).toBeTruthy();
+    expect(review.byPhase[0].phase).toBe('middlegame');
   });
 
-  it('turns cube mistakes into concrete advice', () => {
+  it('counts cube mistakes without repeating the advice for them', () => {
     const review = reviewGame([], [cube({ mistake: 'wrong-take' })], EMPTY_PROGRESS);
 
     expect(review.cube.decisions).toBe(1);
-    expect(review.cube.advice[0]).toMatch(/pass/i);
+    expect(review.cube.mistakes['wrong-take']).toBe(1);
+    expect(review.focus.some((line) => /pass/i.test(line))).toBe(true);
+  });
+
+  it('names leaks briefly and says what to do about them only in the focus list', () => {
+    const review = reviewGame(turns, [], EMPTY_PROGRESS);
+
+    for (const leak of review.leaks) {
+      expect(leak.label.length).toBeLessThan(40);
+      expect(review.focus).not.toContain(leak.label);
+    }
+  });
+
+  it('keeps the focus list short enough to act on', () => {
+    const review = reviewGame(turns, [cube({ mistake: 'missed-double' })], EMPTY_PROGRESS);
+
+    expect(review.focus.length).toBeLessThanOrEqual(3);
+    expect(new Set(review.focus).size).toBe(review.focus.length);
   });
 
   it('recognises a promotion', () => {

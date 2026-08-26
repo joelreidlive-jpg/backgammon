@@ -16,27 +16,31 @@ import {
   weakestConcepts,
   weakestPhase,
 } from './progress.js';
-import { CONCEPT_ADVICE, CUBE_ADVICE, PHASE_GUIDANCE } from './strategy.js';
+import { CONCEPT_ADVICE, CONCEPT_LABEL, CUBE_ADVICE, PHASE_GUIDANCE } from './strategy.js';
 
+/**
+ * A phase is reported as a score, not a lecture. Which phase to do something
+ * about is one decision, and it is made once, in `focus`; guidance on every
+ * phase played buries it in text the player has read before.
+ */
 export interface PhaseReport {
   readonly phase: GamePhase;
   readonly decisions: number;
   readonly errorRate: number;
-  readonly guidance: string;
 }
 
 export interface LeakReport {
   readonly concept: Concept;
   readonly occurrences: number;
   readonly equityLoss: number;
-  readonly advice: string;
+  /** The leak in a few words. The cure, where it is warranted, is in `focus`. */
+  readonly label: string;
 }
 
 export interface CubeReport {
   readonly decisions: number;
   readonly errorRate: number;
   readonly mistakes: Readonly<Partial<Record<CubeMistake, number>>>;
-  readonly advice: readonly string[];
 }
 
 export interface GameReview {
@@ -59,6 +63,11 @@ export interface GameReview {
 
 const WORST_MOMENTS = 3;
 const MAX_LEAKS = 3;
+/**
+ * Three things to work on is already more than anyone acts on in one game, and
+ * every line past the first competes with it.
+ */
+const MAX_FOCUS = 3;
 
 /**
  * The rate is this game's; the tier is the player's standing record. Keeping
@@ -116,7 +125,6 @@ export function reviewGame(
       phase: phase as GamePhase,
       decisions: tally.decisions,
       errorRate: errorRate(tally),
-      guidance: PHASE_GUIDANCE[phase as GamePhase],
     }))
     .sort((a, b) => b.errorRate - a.errorRate);
 
@@ -128,7 +136,7 @@ export function reviewGame(
       concept: concept as Concept,
       occurrences: tally?.missed ?? 0,
       equityLoss: tally?.equityLoss ?? 0,
-      advice: CONCEPT_ADVICE[concept as Concept],
+      label: CONCEPT_LABEL[concept as Concept],
     }));
 
   const cubeAdvice = Object.keys(delta.cubeMistakes)
@@ -147,21 +155,25 @@ export function reviewGame(
   const focusPhase = weakestPhase(progress);
   // Advice that has already been given once reads as a stuck record unless it
   // says that it is a repeat, which is itself the point: the leak survived.
+  // Cube advice comes before the second leak: a mishandled cube costs whole
+  // points, and the list is cut short deliberately.
   const focus = [
-    ...(focusPhase
-      ? [
-          focusPhase === weakestPhase(history)
-            ? `Still your costliest phase. ${PHASE_GUIDANCE[focusPhase]}`
-            : PHASE_GUIDANCE[focusPhase],
-        ]
-      : []),
-    ...weakestConcepts(progress, 2).map((concept) =>
-      (history.byConcept[concept]?.missed ?? 0) > 0
-        ? `This keeps recurring. ${CONCEPT_ADVICE[concept]}`
-        : CONCEPT_ADVICE[concept],
-    ),
-    ...cubeAdvice.slice(0, 1),
-  ];
+    ...new Set([
+      ...(focusPhase
+        ? [
+            focusPhase === weakestPhase(history)
+              ? `Still your costliest phase. ${PHASE_GUIDANCE[focusPhase]}`
+              : PHASE_GUIDANCE[focusPhase],
+          ]
+        : []),
+      ...cubeAdvice.slice(0, 1),
+      ...weakestConcepts(progress, 2).map((concept) =>
+        (history.byConcept[concept]?.missed ?? 0) > 0
+          ? `This keeps recurring. ${CONCEPT_ADVICE[concept]}`
+          : CONCEPT_ADVICE[concept],
+      ),
+    ]),
+  ].slice(0, MAX_FOCUS);
 
   return {
     decisions: combined.decisions,
@@ -174,7 +186,6 @@ export function reviewGame(
       decisions: delta.cube.decisions,
       errorRate: errorRate(delta.cube),
       mistakes: delta.cubeMistakes,
-      advice: cubeAdvice,
     },
     worstMoments,
     focus,
