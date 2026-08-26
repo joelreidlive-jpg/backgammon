@@ -65,7 +65,8 @@ export function analyseTurn(
   const played = findRanked(ranked, playedTurn.board) ?? { turn: playedTurn, equity: best.equity };
   const equityLoss = Math.max(0, best.equity - played.equity);
 
-  const difference = explainDifference(before, playedTurn.board, best.turn.board, player);
+  const phase = phaseOf(before, player);
+  const difference = explainDifference(before, playedTurn.board, best.turn.board, player, phase);
 
   return {
     player,
@@ -79,7 +80,7 @@ export function analyseTurn(
     bestEquity: best.equity,
     equityLoss,
     severity: classifyEquityLoss(equityLoss),
-    phase: phaseOf(before, player),
+    phase,
     explanation: difference.text,
     missed: difference.gains,
     incurred: difference.costs,

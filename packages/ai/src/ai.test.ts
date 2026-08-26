@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { initialBoard, legalTurns, makeBoard, newMatch, playTurn, roll, formatTurn } from '@bg/rules';
-import { heuristicEvaluator, winProbability } from './heuristic.js';
+import { createHeuristicEvaluator, heuristicEvaluator, winProbability } from './heuristic.js';
+import { winProbabilityFromScore } from './calibration.js';
 import { shotsAgainst, shotsFrom } from './shots.js';
 import { ROLLS, bestTurn, rankTurns } from './search.js';
 import { DIFFICULTY_PROFILES, selectTurn } from './difficulty.js';
@@ -70,6 +71,33 @@ describe('evaluator', () => {
       bar: { white: 2 },
     });
     expect(heuristicEvaluator(board, 'white')).toBeLessThan(-0.2);
+  });
+
+  it('reads a level race as lost when the back checkers are primed in', () => {
+    // 80 pips against 82, but white's two on 24 sit behind a full six prime:
+    // white wins about one game in twenty, so this has to be a clear pass.
+    const board = makeBoard({
+      white: { 24: 2, 6: 2, 4: 1, 2: 6, 1: 4 },
+      black: { 23: 2, 22: 3, 21: 2, 20: 2, 19: 2, 18: 2, 15: 1, 10: 1 },
+    });
+    expect(winProbabilityFromScore(heuristicEvaluator(board, 'white'))).toBeLessThan(TAKE_POINT);
+  });
+
+  it('charges for containment only where the checkers are actually shut in', () => {
+    const free = createHeuristicEvaluator({ containment: 0 });
+    const shut = makeBoard({
+      white: { 24: 2, 13: 5, 8: 3, 6: 5 },
+      black: { 23: 2, 22: 2, 21: 2, 20: 2, 19: 2, 18: 2, 14: 3 },
+    });
+    const open = makeBoard({
+      white: { 24: 2, 13: 5, 8: 3, 6: 5 },
+      black: { 15: 2, 14: 3, 12: 2, 11: 2, 10: 2, 9: 2, 7: 2 },
+    });
+
+    // Charged when the six points in front of white's back pair are made
+    // against them, and not charged when the same blocks sit elsewhere.
+    expect(heuristicEvaluator(shut, 'white')).toBeLessThan(free(shut, 'white'));
+    expect(free(open, 'white')).toBeCloseTo(heuristicEvaluator(open, 'white'), 10);
   });
 
   it('scores a completed game at the win value', () => {

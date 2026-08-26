@@ -1,4 +1,5 @@
 import type { GameReview } from '@bg/protocol';
+import { cubeVerdict } from './cubeVerdict.js';
 import { Glossed } from './Glossary.js';
 
 const PHASE_NAMES: Readonly<Record<string, string>> = {
@@ -30,7 +31,7 @@ export function ReviewPanel({ review }: { review: GameReview }) {
   return (
     <section className="review">
       <header>
-        <h2>Game review</h2>
+        <h2>This game</h2>
         <span className={`tier ${review.tier}`}>{review.tier}</span>
         {review.levelledUp && <span className="levelled">levelled up</span>}
         <span className="muted">{review.trend}</span>
@@ -87,8 +88,18 @@ export function ReviewPanel({ review }: { review: GameReview }) {
             {review.cube.decisions} decision{review.cube.decisions === 1 ? '' : 's'} ·{' '}
             {millipoints(review.cube.errorRate)} millipoints each
           </p>
+          {/* The decisions themselves, because a game the cube decided has
+              nothing else to talk about. */}
+          <ul className="cube-moments">
+            {review.cube.moments.map((moment, index) => (
+              <li key={`${moment.choice}-${index}`}>
+                <strong>{cubeVerdict(moment)}</strong>{' '}
+                {moment.mistake !== 'none' && <Glossed>{moment.explanation}</Glossed>}
+              </li>
+            ))}
+          </ul>
           {Object.entries(review.cube.mistakes).length > 0 && (
-            <p>
+            <p className="muted">
               {Object.entries(review.cube.mistakes)
                 .filter(([name]) => name !== 'none')
                 .map(([name, count]) => `${count} ${MISTAKE_NAMES[name] ?? name}`)
@@ -112,9 +123,12 @@ export function ReviewPanel({ review }: { review: GameReview }) {
         </>
       )}
 
+      {/* Drawn from the standing record rather than this game, so it repeats
+          between games by design — folded away so it cannot crowd out what
+          just happened. */}
       {review.focus.length > 0 && (
-        <>
-          <h3>Work on this next</h3>
+        <details className="tray">
+          <summary>Work on this next, across your games</summary>
           <ul className="focus">
             {review.focus.map((line) => (
               <li key={line}>
@@ -122,7 +136,7 @@ export function ReviewPanel({ review }: { review: GameReview }) {
               </li>
             ))}
           </ul>
-        </>
+        </details>
       )}
     </section>
   );

@@ -41,6 +41,12 @@ export interface CubeReport {
   readonly decisions: number;
   readonly errorRate: number;
   readonly mistakes: Readonly<Partial<Record<CubeMistake, number>>>;
+  /**
+   * The cube decisions of this game, in the order they were taken. A game
+   * settled by a double is settled here and nowhere in the checker play, so the
+   * debrief has to be able to talk about the actual decisions.
+   */
+  readonly moments: readonly CubeAnalysis[];
 }
 
 export interface GameReview {
@@ -69,6 +75,7 @@ const MAX_LEAKS = 3;
  * every line past the first competes with it.
  */
 const MAX_FOCUS = 3;
+const MAX_CUBE_MOMENTS = 3;
 
 const ASSESSMENT: Readonly<Record<SkillTier, string>> = {
   expert:
@@ -260,6 +267,7 @@ export function reviewGame(
       decisions: delta.cube.decisions,
       errorRate: errorRate(delta.cube),
       mistakes: delta.cubeMistakes,
+      moments: cubes.filter((cube) => cube.mistake !== 'undecided').slice(-MAX_CUBE_MOMENTS),
     },
     worstMoments,
     focus,

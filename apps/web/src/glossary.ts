@@ -88,6 +88,12 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
       'In match play, the one game immediately after either player reaches match point. The doubling cube may not be used in it.',
   },
   {
+    term: 'crossing',
+    aliases: ['crossings'],
+    definition:
+      'Moving a checker from one quadrant of the board into the next. Counting the crossings each side still owes is the quickest way to judge who is winning a race, since every one of them has to be paid for by a roll.',
+  },
+  {
     term: 'dance',
     aliases: ['dances', 'danced', 'dancing', 'fan', 'fans'],
     definition:
@@ -220,6 +226,12 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
     term: 'timing',
     definition:
       'Having spare pips to play without breaking the points you want to keep. Running out of timing forces you to tear down your own position.',
+  },
+  {
+    term: 'wastage',
+    aliases: ['waste'],
+    definition:
+      'Pips that do no work: a 6 played on the ace point wastes five of them. Even distribution while bearing in is what keeps wastage down, and a stack deep in your home board is what creates it.',
   },
 ];
 

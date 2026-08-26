@@ -1,5 +1,3 @@
-import type { Severity } from '@bg/protocol';
-
 /**
  * Equity is the engine's unit, not the player's: "−0.147" says nothing about
  * what to do differently. Everything the player reads is in words, and the
@@ -13,12 +11,16 @@ const BLUNDER = 0.12;
 const ERROR = 0.06;
 const INACCURACY = 0.02;
 
-export const SEVERITY_HEADLINE: Readonly<Record<Severity, string>> = {
-  fine: 'Well played',
-  inaccuracy: 'Close, but there was a little more in the position',
-  error: 'There was a clearly better play here',
-  blunder: 'This one was costly',
-};
+/**
+ * Why the coach's play is better, as the first thing the player reads. Anything
+ * past two sentences is skipped mid-game, and the coach's own prose is capped
+ * at that length — this trims a longer one rather than trusting it.
+ */
+export function reason(explanation: string, sentences = 2): string {
+  const parts = explanation.match(/[^.!?]+[.!?]*/g);
+  if (!parts) return explanation;
+  return parts.slice(0, sentences).join('').trim();
+}
 
 /** What a mistake cost, as a player would describe it. */
 export function costInWords(equityLoss: number): string {

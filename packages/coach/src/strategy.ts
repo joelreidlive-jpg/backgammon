@@ -81,6 +81,10 @@ export const CONCEPT_ADVICE: Readonly<Record<Concept, readonly string[]>> = {
     'You stack checkers. Six on a point is five checkers doing nothing — spread them into builders.',
     'Use a spare checker to cover a blot or make a new point before adding to a stack. Two points with three checkers each work harder than one point with six.',
   ],
+  bringsCheckersHome: [
+    'You leave checkers outside your home board once there is nothing left to get past. Holding a point earns nothing then; every crossing you have not made is a roll you still owe.',
+    'With no contact left, move the rearmost checker first. Bringing the outfield in evenly avoids the awkward rolls that force you to waste pips later.',
+  ],
   bearsOff: [
     'You are not taking checkers off when you safely could. In a pure race, off is always progress.',
     'In a race with no contact, take the checkers off. Keeping a spare back to smooth a later roll only earns anything while your opponent can still hit you.',
@@ -103,6 +107,7 @@ export const CONCEPT_LABEL: Readonly<Record<Concept, string>> = {
   breaksAnchor: 'anchors broken',
   breaksHomeBoardPoint: 'home board points broken',
   stacksCheckers: 'checkers stacked',
+  bringsCheckersHome: 'crossings left owed',
   bearsOff: 'checkers left on',
 };
 
