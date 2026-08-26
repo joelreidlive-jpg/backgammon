@@ -34,7 +34,7 @@ import type {
   TrainerPrompt,
 } from '@bg/protocol';
 import { logFailure, observability } from './observability.js';
-import { loadProgress, newPlayerToken, recentGames } from './players.js';
+import { loadProgress, recentGames } from './players.js';
 import { gradeRequest } from './grading.js';
 import { ipKey, rateLimit } from './rate-limit.js';
 import { loadAttempts, recordAttempt } from './trainer.js';
@@ -65,11 +65,6 @@ function token(header: string | undefined): string {
   return result.data;
 }
 
-/** The token the caller holds, or a fresh identity if they hold none. */
-function tokenOrNew(header: string | undefined): string {
-  return header === undefined ? newPlayerToken() : token(header);
-}
-
 type Ctx = Context<{ Bindings: Env; Variables: { requestId: string } }>;
 
 /**
@@ -81,14 +76,21 @@ function whoIs(c: Ctx): Promise<Identity> {
   return resolveIdentity(c.env.DB, token(c.req.header('x-player-token')));
 }
 
-/** As `whoIs`, but mints an anonymous identity for a first-time visitor. */
-function whoIsOrNew(c: Ctx): Promise<Identity> {
-  return resolveIdentity(c.env.DB, tokenOrNew(c.req.header('x-player-token')));
+/**
+ * Playing requires an account. Progress is the point of this application, and
+ * a record nobody can get back to is worse than no record — so the identity a
+ * game, a trainer attempt or a progress read is written against has to be one
+ * the player can reach again from another browser.
+ */
+async function player(c: Ctx): Promise<Identity> {
+  const identity = await whoIs(c);
+  if (identity.email === null) throw new MatchError('sign in to play', 401);
+  return identity;
 }
 
 /** The caller's progress key, which is also what authorises their match. */
 async function keyOf(c: Ctx): Promise<string> {
-  return (await whoIs(c)).key;
+  return (await player(c)).key;
 }
 
 app.onError((error, c) => {
@@ -125,9 +127,9 @@ app.use(
   }),
 );
 
-// Creating a match is cheap but unauthenticated, so it is the endpoint an
-// abuser would use to mint unlimited identities; the per-turn limit is looser
-// because a real game is a steady trickle of requests.
+// Creating a match is cheap, so an account could still make thousands of them;
+// the per-turn limit is looser because a real game is a steady trickle of
+// requests.
 app.use('/api/matches', rateLimit((env) => env.MATCH_CREATE_LIMIT, 60));
 app.use('/api/matches/*', rateLimit((env) => env.MATCH_LIMIT, 60));
 app.use('/api/trainer/*', rateLimit((env) => env.TRAINER_LIMIT, 60));
@@ -168,9 +170,7 @@ app.get('/api/auth/me', async (c) => {
 
 app.post('/api/matches', async (c) => {
   const body = await parseBody(createMatchSchema, c.req.raw);
-  // A returning player sends the token they already hold, which is what makes
-  // progress accumulate across matches rather than resetting each time.
-  const identity = await whoIsOrNew(c);
+  const identity = await player(c);
   const matchId = crypto.randomUUID();
   const { view } = await stub(c.env, matchId).create(matchId, body, identity);
   return c.json({ playerToken: identity.token, match: view }, 201);
@@ -273,9 +273,7 @@ const CUBE_GUIDANCE =
   'Cube decisions swing more equity than checker plays. Count how often you win a gammon here, not just how often you win.';
 
 app.get('/api/trainer/next', async (c) => {
-  // The trainer is reachable without ever having played a match, so it mints
-  // the identity if the browser does not have one yet.
-  const identity = await whoIsOrNew(c);
+  const identity = await player(c);
   const key = identity.key;
   const [progress, attempts] = await Promise.all([
     loadProgress(c.env.DB, key),

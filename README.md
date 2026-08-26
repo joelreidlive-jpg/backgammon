@@ -124,15 +124,22 @@ rather than the single game, so one clean game does not erase a habit.
 ### Progress and identity
 
 Progress is keyed to an opaque bearer token held in `localStorage` and stored in
-D1 under a SHA-256 digest of it, so the database never holds the secret. It
-survives across matches with no login, and is lost if the browser is cleared.
+D1 under a SHA-256 digest of it, so the database never holds the secret.
 
 An account is a way of reaching that same key, not a second identity. Signing in
-returns a session token which the browser uses exactly as an anonymous one, and
-`resolveIdentity` maps it to the account's `player_id` — so progress, completed
-games and trainer attempts are untouched by sign-in, and follow the login to any
-browser. Signing up adopts the anonymous key the browser already holds, unless
-another account owns it, so a visitor's record is not lost when they register.
+returns a session token which the browser uses exactly as the token always was,
+and `resolveIdentity` maps it to the account's `player_id` — so progress,
+completed games and trainer attempts know nothing about accounts, and follow the
+login to any browser.
+
+**Playing requires an account.** `player()` refuses any identity without an
+address, so every match, trainer attempt and progress read belongs to a record
+its owner can get back to; a record reachable only from one browser's
+`localStorage` is worse than none, because it is the grade and the trainer's
+memory of a player's leaks. Signing up still adopts the key the browser already
+holds, unless another account owns it, so a record built before accounts existed
+is not lost.
+
 Passwords are PBKDF2-SHA256 (210,000 iterations, per-row salt and parameters):
 the only password KDF the Workers runtime offers without a WASM dependency.
 There is no email verification and no password reset, because neither is
