@@ -45,13 +45,9 @@ export function NewMatchForm({ busy, error, progress, onStart, onTrain, resume }
     <div className="setup">
       <div className="setup-head">
         <h1>Backgammon</h1>
-        {/* Signing in here rather than mid-game: this is where a shared link lands. */}
         <AccountButton />
       </div>
       <p className="muted">Play the engine, with a coach watching over your shoulder.</p>
-      <p className="muted">
-        Sign in to keep your progress on any device — otherwise it stays in this browser.
-      </p>
 
       {resume && (
         <div className="resume">
