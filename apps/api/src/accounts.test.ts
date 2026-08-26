@@ -113,6 +113,11 @@ describe('passwords', () => {
     expect(record.hash).not.toContain('hunter2');
   });
 
+  it('stays inside the iteration count the Workers runtime will accept', async () => {
+    const record = await hashPassword('a password worth keeping');
+    expect(record.iterations).toBeLessThanOrEqual(100_000);
+  });
+
   it('salts each account separately, so two equal passwords do not match', async () => {
     const one = await hashPassword('same password', 1000);
     const two = await hashPassword('same password', 1000);
