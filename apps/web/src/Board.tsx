@@ -1,5 +1,5 @@
 import type { Board as BoardModel, Dice, Player } from '@bg/rules';
-import { barSlot, checkersAt, offSlot } from '@bg/rules';
+import { barSlot, checkersAt, offSlot, pipCount } from '@bg/rules';
 import { DicePair } from './Dice.js';
 import { cubeFace, cubeLabel, cubeSide } from './cube.js';
 
@@ -99,9 +99,41 @@ export function offEdgeTop(baseY: number, direction: 1 | -1, index: number): num
     : baseY - index * EDGE_PITCH - EDGE_HEIGHT;
 }
 
+/**
+ * Room at each tray end for that player's pip count. Any larger and two full
+ * fifteen-checker stacks would meet in the middle of the tray.
+ */
+const PIP_BAND = 22;
+
 /** The two tray ends the players' borne-off checkers stack in from. */
-export const BLACK_TRAY_BASE = MARGIN + 8;
-export const WHITE_TRAY_BASE = HEIGHT - MARGIN - 8;
+export const BLACK_TRAY_BASE = MARGIN + 8 + PIP_BAND;
+export const WHITE_TRAY_BASE = HEIGHT - MARGIN - 8 - PIP_BAND;
+
+/**
+ * The race, where a real board would have nothing: in the tray ends, so the
+ * count costs no screen away from the felt. Lower is ahead, so green is the
+ * lower number — the colour saves the player doing the comparison.
+ */
+function PipCounts({ board, seat }: { board: BoardModel; seat: Player }) {
+  const yours = pipCount(board, seat);
+  const theirs = pipCount(board, seat === 'white' ? 'black' : 'white');
+  const standing = (mine: number, other: number): string =>
+    mine === other ? 'level' : mine < other ? 'ahead' : 'behind';
+  const x = TRAY_X + TRAY_WIDTH / 2;
+  const top = seat === 'black' ? yours : theirs;
+  const bottom = seat === 'black' ? theirs : yours;
+
+  return (
+    <g role="img" aria-label={`Pip count: you ${yours}, opponent ${theirs}`}>
+      <text className={`pip-count ${standing(top, bottom)}`} x={x} y={MARGIN + 22}>
+        {top}
+      </text>
+      <text className={`pip-count ${standing(bottom, top)}`} x={x} y={HEIGHT - MARGIN - 8}>
+        {bottom}
+      </text>
+    </g>
+  );
+}
 
 function OffTray({ count, player, baseY, direction }: Omit<StackProps, 'centreX'>) {
   const x = TRAY_X + EDGE_INSET;
@@ -387,7 +419,7 @@ export function Board({
               direction={top ? 1 : -1}
               pulsing={pulse.has(slot)}
             />
-            <text className="slot-label" x={x + POINT_WIDTH / 2} y={top ? MARGIN - 6 : HEIGHT - MARGIN + 16}>
+            <text className="slot-label" x={x + POINT_WIDTH / 2} y={top ? MARGIN - 5 : HEIGHT - MARGIN + 15}>
               {slot}
             </text>
             <rect
@@ -455,6 +487,8 @@ export function Board({
           {previewLabel}
         </text>
       )}
+
+      <PipCounts board={board} seat={seat} />
 
       <OffTray count={board.off.black} player="black" baseY={BLACK_TRAY_BASE} direction={1} />
       <OffTray count={board.off.white} player="white" baseY={WHITE_TRAY_BASE} direction={-1} />
