@@ -3,7 +3,7 @@ import type { CoachingPolicy, CubeAnalysis, Hint, HintLevel, TurnAnalysis } from
 import type { BetterMoveEvent, BetterMoveState } from './betterMove.js';
 import { betterMoveOffered } from './betterMove.js';
 import { Glossed } from './Glossary.js';
-import { SEVERITY_HEADLINE } from './wording.js';
+import { reason } from './wording.js';
 
 /**
  * Hints nudge; they no longer hand over the answer. Being shown the best play
@@ -135,9 +135,11 @@ export function CoachPanel({
 
       {offered && betterMove !== 'played' && (
         <div className={`analysis ${analysis.severity}`}>
-          <div className="analysis-head">
-            <span className="severity">{SEVERITY_HEADLINE[analysis.severity]}</span>
-          </div>
+          {/* Why the coach's play beats the one made, rather than how much the
+              mistake cost: the reason is the only part the player can act on. */}
+          <p className="explanation">
+            <Glossed>{reason(analysis.explanation)}</Glossed>
+          </p>
 
           <p>
             You played <strong>{analysis.played}</strong>.
@@ -159,9 +161,6 @@ export function CoachPanel({
               </>
             ) : (
               <>
-                <p className="explanation">
-                  <Glossed>{analysis.explanation}</Glossed>
-                </p>
                 <p>
                   The coach plays <strong>{analysis.best}</strong> — the checkers it moves are
                   pulsing on the board.

@@ -38,7 +38,8 @@
   --die-black: #2c2825;
   --die-black-light: #5d554f;
   --die-black-pip: #efe7da;
-  --slot-label: #6d5b47;
+  --slot-label: #f2e6d2;
+  --slot-label-halo: rgba(0, 0, 0, 0.55);
   --stack-count: #f6ead6;
 }
 
@@ -65,7 +66,8 @@
   --die-black: #46200a;
   --die-black-light: #7a4020;
   --die-black-pip: #fff4e6;
-  --slot-label: #43200a;
+  --slot-label: #2e1104;
+  --slot-label-halo: rgba(255, 244, 230, 0.65);
   --stack-count: #fff4e6;
 }
 
@@ -92,7 +94,8 @@
   --die-black: #33405a;
   --die-black-light: #5d6c88;
   --die-black-pip: #e8eef6;
-  --slot-label: #5b6675;
+  --slot-label: #eef3f8;
+  --slot-label-halo: rgba(0, 0, 0, 0.5);
   --stack-count: #f4f7fa;
 }
 
@@ -119,7 +122,8 @@
   --die-black: #232323;
   --die-black-light: #565656;
   --die-black-pip: #f3ede2;
-  --slot-label: #cfc6b8;
+  --slot-label: #f4ead9;
+  --slot-label-halo: rgba(0, 0, 0, 0.55);
   --stack-count: #ffe9c9;
 }
 
@@ -531,10 +535,39 @@ main {
   stroke-width: 4;
 }
 
+/* Numbered points are read at a glance mid-turn, so the label carries a halo
+   in the opposite tone: legible on any of the four woods. */
 .slot-label {
   fill: var(--slot-label);
-  font-size: 15px;
+  font-size: 20px;
+  font-weight: 700;
   text-anchor: middle;
+  paint-order: stroke;
+  stroke: var(--slot-label-halo);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.pip-count {
+  font-size: 21px;
+  font-weight: 700;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.5);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.pip-count.ahead {
+  fill: #4ccf82;
+}
+
+.pip-count.behind {
+  fill: #ff6b6b;
+}
+
+.pip-count.level {
+  fill: var(--stack-count);
 }
 
 /* The doubling cube, in the tray beside the borne-off checkers */
@@ -732,6 +765,14 @@ main {
 
 .explanation {
   color: var(--muted);
+}
+
+/* The reason leads the coach's block, so it is not the greyed-out afterthought
+   an explanation was when it sat underneath. */
+.analysis > .explanation:first-child {
+  color: var(--text);
+  font-weight: 600;
+  margin-top: 0;
 }
 
 .better-move {

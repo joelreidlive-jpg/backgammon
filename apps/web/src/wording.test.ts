@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SEVERITY_HEADLINE, costInWords } from './wording.js';
+import { costInWords, reason } from './wording.js';
 
 describe('plain-language grading', () => {
   it('describes a mistake by size rather than by equity', () => {
@@ -11,7 +11,14 @@ describe('plain-language grading', () => {
   });
 
   it('never puts a number in front of the player', () => {
-    const wordings = [...Object.values(SEVERITY_HEADLINE), costInWords(0.31)];
-    for (const wording of wordings) expect(wording).not.toMatch(/\d/);
+    expect(costInWords(0.31)).not.toMatch(/\d/);
+  });
+
+  it('keeps the coach to two sentences', () => {
+    expect(reason('The better play hits. Your play leaves a blot. And a third thing.')).toBe(
+      'The better play hits. Your play leaves a blot.',
+    );
+    expect(reason('One sentence only.')).toBe('One sentence only.');
+    expect(reason('No full stop')).toBe('No full stop');
   });
 });
