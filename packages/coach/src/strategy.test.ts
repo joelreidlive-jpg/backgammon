@@ -125,6 +125,19 @@ describe('cube decisions', () => {
     expect(analysis.equityLoss).toBe(0);
   });
 
+  it('never argues against its own cube verdict', () => {
+    // "Well behind" once meant anything under 30%, so a correct take at 25%
+    // read as "you are well behind — take", which is a contradiction.
+    const takeable = makeBoard({
+      white: { 20: 2, 19: 2, 13: 4, 8: 3, 6: 4 },
+      black: { 1: 2, 5: 2, 12: 5, 17: 3, 21: 3 },
+    });
+    const analysis = analyseCubeResponse(takeable, 'black', 'drop');
+    expect(analysis.mistake).toBe('wrong-drop');
+    expect(analysis.explanation).not.toMatch(/well behind/);
+    expect(analyseCubeResponse(whiteWinning, 'black', 'take').explanation).toMatch(/well behind/);
+  });
+
   it('reports the responder win probability from their own side', () => {
     const analysis = analyseCubeResponse(whiteWinning, 'black', 'drop');
     expect(analysis.winProbability).toBeLessThan(0.5);
