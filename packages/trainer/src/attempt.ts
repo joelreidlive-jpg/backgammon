@@ -7,6 +7,7 @@ import {
   classifyEquityLoss,
   conceptsOf,
   explainDifference,
+  phaseOf,
 } from '@bg/coach';
 import { type LoadedProblem, matchesBest } from './problem.js';
 
@@ -84,7 +85,13 @@ export function gradeAttempt(
 
   const exact = matchesBest(problem, playedTurn.board);
   const equityLoss = exact ? 0 : Math.max(0, answerEquity - playedEquity);
-  const difference = explainDifference(problem.board, playedTurn.board, answer.board, problem.player);
+  const difference = explainDifference(
+    problem.board,
+    playedTurn.board,
+    answer.board,
+    problem.player,
+    phaseOf(problem.board, problem.player),
+  );
 
   return {
     kind: 'checker',
