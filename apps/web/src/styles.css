@@ -965,8 +965,9 @@ main {
    surrounding furniture should shrink around it, never the other way round. */
 
 @media (pointer: coarse) {
-  /* Touch cannot hit a 24px control reliably. */
-  button:not(.link) {
+  /* Touch cannot hit a 24px control reliably. A linked glossary term is a word
+     in a sentence rather than a control, and must keep its line height. */
+  button:not(.link):not(.term) {
     min-height: 2.75rem;
   }
 

@@ -58,9 +58,22 @@ describe('explanations', () => {
     const best = bestTurn(before, 'white', [3, 1], { plies: 1 })!;
     const worse = rankTurns(before, 'white', [3, 1], { plies: 1 }).at(-1)!;
 
-    const explanation = explainDifference(before, worse.turn.board, best.turn.board, 'white');
+    const explanation = explainDifference(before, worse.turn.board, best.turn.board, 'white', 'opening');
     expect(explanation.text).toMatch(/home board point|point|prime|blot|structure/);
     expect(explanation.text.endsWith('.')).toBe(true);
+  });
+
+  it('says why the difference matters in the phase being played', () => {
+    const before = initialBoard();
+    const best = bestTurn(before, 'white', [3, 1], { plies: 1 })!;
+    const worse = rankTurns(before, 'white', [3, 1], { plies: 1 }).at(-1)!;
+
+    const opening = explainDifference(before, worse.turn.board, best.turn.board, 'white', 'opening');
+    const race = explainDifference(before, worse.turn.board, best.turn.board, 'white', 'race');
+
+    // Two sentences: what the difference is, then why it costs what it costs.
+    expect(opening.text.split(/(?<=\.)\s+/)).toHaveLength(2);
+    expect(opening.text).not.toBe(race.text);
   });
 
   it('gives a concept hint without naming the move', () => {
