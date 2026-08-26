@@ -19,9 +19,12 @@ const SESSION_MS = 90 * 24 * 60 * 60 * 1000;
 /**
  * PBKDF2-SHA256 is used because it is the only password KDF the Workers runtime
  * offers through Web Crypto; a memory-hard KDF would need a WASM dependency.
- * The count is OWASP's 2023 floor for this construction.
+ * OWASP's 2023 floor for this construction is 600,000, but the Workers runtime
+ * refuses any count above 100,000, so this is the ceiling available here. Each
+ * account stores the count it was hashed with, so raising it later costs only a
+ * rehash on next sign-in, not a reset.
  */
-const ITERATIONS = 210_000;
+const ITERATIONS = 100_000;
 
 export interface Identity {
   /** The token the caller presented, or the one just minted for them. */
