@@ -900,6 +900,26 @@ main {
   margin: 0;
 }
 
+/* A fold for the standing record and its advice, which does not change from
+   game to game and so must not compete with the game just played. */
+.tray {
+  grid-column: 1 / -1;
+  margin-top: 1rem;
+}
+
+.tray > summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding: 0.4rem 0;
+}
+
+.tray > .progress {
+  margin-top: 0.5rem;
+}
+
 .severity.blunder {
   color: var(--danger);
 }
