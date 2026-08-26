@@ -44,6 +44,8 @@ export const CONCEPT_ADVICE: Readonly<Record<Concept, string>> = {
     'You break home board points too early. A strong home board is what makes hitting worthwhile later.',
   stacksCheckers:
     'You stack checkers. Six on a point is five checkers doing nothing — spread them into builders.',
+  bringsCheckersHome:
+    'You leave checkers outside your home board once there is nothing left to get past. Holding a point earns nothing then; every crossing you have not made is a roll you still owe.',
   bearsOff:
     'You are not taking checkers off when you safely could. In a pure race, off is always progress.',
 };
@@ -64,6 +66,7 @@ export const CONCEPT_LABEL: Readonly<Record<Concept, string>> = {
   breaksAnchor: 'anchors broken',
   breaksHomeBoardPoint: 'home board points broken',
   stacksCheckers: 'checkers stacked',
+  bringsCheckersHome: 'crossings left owed',
   bearsOff: 'checkers left on',
 };
 

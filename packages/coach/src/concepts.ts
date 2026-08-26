@@ -3,6 +3,7 @@ import {
   type Player,
   checkersAt,
   homeSlots,
+  isBearingIn,
   isHomeSlot,
   opponent,
 } from '@bg/rules';
@@ -24,6 +25,7 @@ export type Concept =
   | 'breaksAnchor'
   | 'breaksHomeBoardPoint'
   | 'stacksCheckers'
+  | 'bringsCheckersHome'
   | 'bearsOff';
 
 export const CONCEPT_LABELS: Readonly<Record<Concept, string>> = {
@@ -38,6 +40,7 @@ export const CONCEPT_LABELS: Readonly<Record<Concept, string>> = {
   breaksAnchor: 'gives up an anchor',
   breaksHomeBoardPoint: 'breaks a home board point',
   stacksCheckers: 'stacks checkers',
+  bringsCheckersHome: 'brings a checker home',
   bearsOff: 'bears off',
 };
 
@@ -83,6 +86,15 @@ function maxStack(board: Board, player: Player): number {
   return max;
 }
 
+/** Checkers still outside the home board, the bar included. */
+function outsideHome(board: Board, player: Player): number {
+  let count = board.bar[player];
+  for (let slot = 1; slot <= 24; slot++) {
+    if (!isHomeSlot(player, slot)) count += checkersAt(board, player, slot);
+  }
+  return count;
+}
+
 /** Which concepts describe the transition from `before` to `after`. */
 export function conceptsOf(before: Board, after: Board, player: Player): Set<Concept> {
   const foe = opponent(player);
@@ -119,7 +131,16 @@ export function conceptsOf(before: Board, after: Board, player: Player): Set<Con
     if (isHomeSlot(foe, slot)) concepts.add('leavesBlotInOpponentHome');
   }
 
-  if (maxStack(after, player) > Math.max(4, maxStack(before, player))) concepts.add('stacksCheckers');
+  // Concentration is only a fault while there are still points to make with
+  // those checkers. Once nothing stands between the player and their home board
+  // they are bearing in, and a tall point is what that looks like.
+  const bearingIn = isBearingIn(after, player);
+  if (bearingIn && outsideHome(after, player) < outsideHome(before, player)) {
+    concepts.add('bringsCheckersHome');
+  }
+  if (!bearingIn && maxStack(after, player) > Math.max(4, maxStack(before, player))) {
+    concepts.add('stacksCheckers');
+  }
 
   return concepts;
 }

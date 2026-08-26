@@ -121,6 +121,30 @@ export function madePoints(board: Board, player: Player): number[] {
   return slots;
 }
 
+/**
+ * True when no opponent point stands between the player and their home board.
+ *
+ * From here the player's game is bringing checkers home and bearing off rather
+ * than getting past anything: nothing can block them, and the only risk left is
+ * a shot. Structure that exists to trap checkers stops paying at this point.
+ */
+export function isBearingIn(board: Board, player: Player): boolean {
+  if (board.bar[player] > 0) return false;
+
+  let rearmost = 0;
+  for (let slot = 1; slot <= 24; slot++) {
+    if (checkersAt(board, player, slot) === 0) continue;
+    rearmost = Math.max(rearmost, distanceToOff(player, slot));
+  }
+
+  const foe = opponent(player);
+  for (let slot = 1; slot <= 24; slot++) {
+    if (checkersAt(board, foe, slot) < 2) continue;
+    if (distanceToOff(player, slot) < rearmost) return false;
+  }
+  return true;
+}
+
 /** True once the two sides can no longer hit each other. */
 export function isRace(board: Board): boolean {
   if (board.bar.white > 0 || board.bar.black > 0) return false;
