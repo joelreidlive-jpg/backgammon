@@ -79,7 +79,19 @@ export function clearSession(): void {
   localStorage.removeItem(ACTIVE_KEY);
 }
 
-export class ApiError extends Error {}
+/**
+ * A refusal carries its status, because what the caller should do depends on
+ * it: a 401 means the identity is gone, while a 429 or a 5xx means the
+ * question simply went unanswered.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
 
 async function request<T>(path: string, init: RequestInit & { token?: string } = {}): Promise<T> {
   const { token, ...rest } = init;
@@ -95,7 +107,7 @@ async function request<T>(path: string, init: RequestInit & { token?: string } =
   if (!response.ok) {
     const message =
       body && typeof body === 'object' && 'error' in body ? String(body.error) : response.statusText;
-    throw new ApiError(message);
+    throw new ApiError(message, response.status);
   }
   return body as T;
 }
