@@ -1,5 +1,20 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { api, clearPlayer, loadPlayerToken, savePlayerToken, clearSession } from './api.js';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
+import {
+  ApiError,
+  api,
+  clearPlayer,
+  loadPlayerToken,
+  savePlayerToken,
+  clearSession,
+} from './api.js';
 
 /**
  * Signing in, so that progress follows the player rather than the browser.
@@ -13,11 +28,29 @@ import { api, clearPlayer, loadPlayerToken, savePlayerToken, clearSession } from
 
 type Mode = 'signin' | 'signup';
 
-/** Who is playing, as the server sees it: the browser's token may have expired. */
-type Who = { status: 'asking' } | { status: 'out' } | { status: 'in'; email: string };
+/**
+ * Who is playing, as the server sees it: the browser's token may have expired.
+ * `lost` is deliberately distinct from `out` — a token the server refuses is
+ * not the same as a server that would not answer, and since this gates the
+ * whole app, guessing `out` on a rate limit or a dropped connection would sign
+ * a player out of a game they are in the middle of.
+ */
+type Who =
+  | { status: 'asking' }
+  | { status: 'out' }
+  | { status: 'lost' }
+  | { status: 'in'; email: string };
+
+/** One answer per page load, shared: asking twice spends the auth rate limit twice. */
+const WhoContext = createContext<Who>({ status: 'asking' });
 
 function useWho(): Who {
+  return useContext(WhoContext);
+}
+
+function useAskWho(): { who: Who; again: () => void } {
   const [who, setWho] = useState<Who>({ status: 'asking' });
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const token = loadPlayerToken();
@@ -30,10 +63,21 @@ function useWho(): Who {
       .then((answer) =>
         setWho(answer.email === null ? { status: 'out' } : { status: 'in', email: answer.email }),
       )
-      .catch(() => setWho({ status: 'out' }));
+      .catch((cause: unknown) =>
+        setWho(
+          cause instanceof ApiError && cause.status === 401
+            ? { status: 'out' }
+            : { status: 'lost' },
+        ),
+      );
+  }, [attempt]);
+
+  const again = useCallback(() => {
+    setWho({ status: 'asking' });
+    setAttempt((n) => n + 1);
   }, []);
 
-  return who;
+  return { who, again };
 }
 
 /**
@@ -43,19 +87,39 @@ function useWho(): Who {
  * server then refuses to accept.
  */
 export function RequireAccount({ children }: { children: ReactNode }) {
-  const who = useWho();
+  const { who, again } = useAskWho();
 
   if (who.status === 'asking') return <p className="setup muted">One moment…</p>;
-  if (who.status === 'in') return <>{children}</>;
+
+  if (who.status === 'in') {
+    return <WhoContext.Provider value={who}>{children}</WhoContext.Provider>;
+  }
+
+  if (who.status === 'lost') {
+    return (
+      <div className="setup">
+        <h1>Backgammon</h1>
+        <p className="muted">
+          Could not reach the server to check who is playing. You are still signed in — this is the
+          connection, not your account.
+        </p>
+        <button type="button" onClick={again}>
+          Try again
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="setup">
-      <h1>Backgammon</h1>
-      <p className="muted">Play the engine, with a coach watching over your shoulder.</p>
-      <p className="muted">
-        Sign in to play. Your games, your grade and the trainer's record of what you keep getting
-        wrong all belong to your account, so they follow you to any device.
-      </p>
+    <div className="setup gate">
+      <div className="blurb">
+        <h1>Backgammon</h1>
+        <p className="muted">Play the engine, with a coach watching over your shoulder.</p>
+        <p className="muted">
+          Sign in to play: your games, your grade and the trainer's record of what you keep getting
+          wrong belong to your account, so they follow you to any device.
+        </p>
+      </div>
       <AccountForm mode="signin" />
     </div>
   );

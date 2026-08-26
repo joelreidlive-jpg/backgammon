@@ -1011,6 +1011,31 @@ main {
   .setup {
     margin: 1.25rem auto;
   }
+
+  /* Signing in has to happen without scrolling: the submit button below the
+     fold reads as a form that cannot be sent. Side by side, the tallest thing
+     on screen is the form itself. */
+  .gate {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    max-width: none;
+    margin: 0.75rem auto;
+  }
+
+  .gate .blurb {
+    flex: 1 1 0;
+  }
+
+  .gate .blurb h1 {
+    margin-top: 0;
+    font-size: 1.5rem;
+  }
+
+  .gate .account {
+    flex: 0 0 auto;
+    margin-top: 0;
+  }
 }
 
 /* Board theme picker */
