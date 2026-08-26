@@ -331,6 +331,21 @@ describe('end of game review', () => {
     expect(review.focus.some((line) => /pass/i.test(line))).toBe(true);
   });
 
+  it('keeps the cube decisions themselves, since they may be all the game had', () => {
+    const review = reviewGame(
+      [],
+      [cube({ choice: 'double', best: 'double', mistake: 'none' }), cube({ mistake: 'wrong-take' })],
+      EMPTY_PROGRESS,
+    );
+
+    expect(review.cube.moments.map((moment) => moment.mistake)).toEqual(['none', 'wrong-take']);
+  });
+
+  it('leaves out cube decisions it cannot grade', () => {
+    const review = reviewGame([], [cube({ mistake: 'undecided' })], EMPTY_PROGRESS);
+    expect(review.cube.moments).toEqual([]);
+  });
+
   it('names leaks briefly and says what to do about them only in the focus list', () => {
     const review = reviewGame(turns, [], EMPTY_PROGRESS);
 

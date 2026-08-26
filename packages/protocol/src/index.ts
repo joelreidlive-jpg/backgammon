@@ -3,6 +3,7 @@ import type { Difficulty } from '@bg/ai';
 import type {
   CoachingPolicy,
   CubeAnalysis,
+  CubeChoice,
   GameReview,
   Hint,
   HintLevel,
@@ -34,6 +35,7 @@ import type {
 export type {
   CoachingPolicy,
   CubeAnalysis,
+  CubeChoice,
   Difficulty,
   GameReview,
   Hint,

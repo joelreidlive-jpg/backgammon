@@ -303,6 +303,7 @@ export function App() {
         busy={busy}
         onTrain={() => setTraining(true)}
         progress={progress}
+        lastReview={review}
         resume={
           resumable
             ? {
@@ -449,10 +450,11 @@ export function App() {
             type="button"
             className="link"
             onClick={() => {
+              // The debrief for the game just finished survives the trip back to
+              // the setup screen, which is where a player reads it.
               clearSession();
               setSession(null);
               setView(null);
-              setReview(null);
               setError(null);
             }}
           >

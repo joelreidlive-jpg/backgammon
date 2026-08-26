@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import type { CreateMatchRequest, Difficulty, ProgressResponse } from '@bg/protocol';
+import type { CreateMatchRequest, Difficulty, GameReview, ProgressResponse } from '@bg/protocol';
 import { AccountButton } from './Account.js';
 import { ProgressPanel } from './ProgressPanel.js';
+import { ReviewPanel } from './ReviewPanel.js';
 import { ThemePicker } from './ThemePicker.js';
 import { useBoardTheme } from './theme.js';
 
@@ -26,12 +27,22 @@ export interface NewMatchFormProps {
   busy: boolean;
   error: string | null;
   progress: ProgressResponse | null;
+  /** The debrief for the game just finished, if one finished this visit. */
+  lastReview?: GameReview | null;
   onStart: (request: CreateMatchRequest) => void;
   onTrain: () => void;
   resume?: ResumeOffer | null;
 }
 
-export function NewMatchForm({ busy, error, progress, onStart, onTrain, resume }: NewMatchFormProps) {
+export function NewMatchForm({
+  busy,
+  error,
+  progress,
+  lastReview,
+  onStart,
+  onTrain,
+  resume,
+}: NewMatchFormProps) {
   // Progress arrives after the first render, so the suggested level has to be
   // read live rather than captured as initial state — until the player picks.
   const [chosenLevel, setChosenLevel] = useState<Difficulty | null>(null);
@@ -151,7 +162,16 @@ export function NewMatchForm({ busy, error, progress, onStart, onTrain, resume }
         </span>
       </div>
 
-      {progress && <ProgressPanel progress={progress} />}
+      {/* What just happened comes first; the standing record is the same every
+          game and reads as boilerplate beside it, so it is folded away. */}
+      {lastReview && <ReviewPanel review={lastReview} />}
+
+      {progress && (
+        <details className="tray">
+          <summary>Your progress across all games</summary>
+          <ProgressPanel progress={progress} />
+        </details>
+      )}
     </div>
   );
 }
