@@ -87,6 +87,25 @@ export const CONCEPT_ADVICE: Readonly<Record<Concept, readonly string[]>> = {
   ],
 };
 
+/**
+ * The same leak in a few words. The review lists what went wrong and advises on
+ * it once, at the end; naming a leak is not the place to repeat the cure.
+ */
+export const CONCEPT_LABEL: Readonly<Record<Concept, string>> = {
+  hitsOpponent: 'hits passed up',
+  makesHomeBoardPoint: 'home board points missed',
+  makesPoint: 'points left unmade',
+  buildsPrime: 'primes not extended',
+  escapesBackChecker: 'back checkers left back',
+  anchorsInOpponentHome: 'anchors missed',
+  leavesBlot: 'needless blots',
+  leavesBlotInOpponentHome: 'blots in their home board',
+  breaksAnchor: 'anchors broken',
+  breaksHomeBoardPoint: 'home board points broken',
+  stacksCheckers: 'checkers stacked',
+  bearsOff: 'checkers left on',
+};
+
 export const CUBE_ADVICE: Readonly<Record<CubeMistake, string>> = {
   none: '',
   undecided: '',

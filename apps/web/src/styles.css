@@ -841,19 +841,22 @@ main {
   margin-bottom: 0.45rem;
 }
 
+.review h3 .muted {
+  font-weight: 400;
+  font-size: 0.8em;
+}
+
+.phases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+  margin: 0;
+  padding: 0;
+}
+
 .phases li {
   list-style: none;
-  margin-left: -1.1rem;
-}
-
-.phase-head {
-  display: flex;
-  justify-content: space-between;
-}
-
-.phases p {
-  margin: 0.15rem 0 0;
-  color: var(--muted);
+  margin: 0;
 }
 
 .severity.blunder {

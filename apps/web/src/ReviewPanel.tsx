@@ -47,21 +47,20 @@ export function ReviewPanel({ review }: { review: GameReview }) {
         millipoints lost per decision
       </p>
 
+      {/* A scoreboard, costliest phase first. What to do about it is said once,
+          under "Work on this next". */}
       {review.byPhase.length > 0 && (
         <>
-          <h3>By phase</h3>
+          <h3>
+            By phase <span className="muted">decisions · millipoints each</span>
+          </h3>
           <ul className="phases">
             {review.byPhase.map((phase) => (
               <li key={phase.phase}>
-                <div className="phase-head">
-                  <strong>{PHASE_NAMES[phase.phase] ?? phase.phase}</strong>
-                  <span className="muted">
-                    {phase.decisions} · {millipoints(phase.errorRate)}
-                  </span>
-                </div>
-                <p>
-                  <Glossed>{phase.guidance}</Glossed>
-                </p>
+                <strong>{PHASE_NAMES[phase.phase] ?? phase.phase}</strong>{' '}
+                <span className="muted">
+                  {phase.decisions} · {millipoints(phase.errorRate)}
+                </span>
               </li>
             ))}
           </ul>
@@ -70,11 +69,11 @@ export function ReviewPanel({ review }: { review: GameReview }) {
 
       {review.leaks.length > 0 && (
         <>
-          <h3>Recurring leaks</h3>
+          <h3>Leaks this game</h3>
           <ul className="leaks">
             {review.leaks.map((leak) => (
               <li key={leak.concept}>
-                <strong>×{leak.occurrences}</strong> <Glossed>{leak.advice}</Glossed>
+                <strong>×{leak.occurrences}</strong> <Glossed>{leak.label}</Glossed>
               </li>
             ))}
           </ul>
@@ -96,13 +95,6 @@ export function ReviewPanel({ review }: { review: GameReview }) {
                 .join(', ')}
             </p>
           )}
-          <ul className="cube-advice">
-            {review.cube.advice.map((line) => (
-              <li key={line}>
-                <Glossed>{line}</Glossed>
-              </li>
-            ))}
-          </ul>
         </>
       )}
 

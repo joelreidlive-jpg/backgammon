@@ -16,27 +16,31 @@ import {
   weakestConcepts,
   weakestPhase,
 } from './progress.js';
-import { CONCEPT_ADVICE, CUBE_ADVICE, PHASE_GUIDANCE, conceptAdvice, phaseAdvice } from './strategy.js';
+import { CONCEPT_LABEL, CUBE_ADVICE, conceptAdvice, phaseAdvice } from './strategy.js';
 
+/**
+ * A phase is reported as a score, not a lecture. Which phase to do something
+ * about is one decision, and it is made once, in `focus`; guidance on every
+ * phase played buries it in text the player has read before.
+ */
 export interface PhaseReport {
   readonly phase: GamePhase;
   readonly decisions: number;
   readonly errorRate: number;
-  readonly guidance: string;
 }
 
 export interface LeakReport {
   readonly concept: Concept;
   readonly occurrences: number;
   readonly equityLoss: number;
-  readonly advice: string;
+  /** The leak in a few words. The cure, where it is warranted, is in `focus`. */
+  readonly label: string;
 }
 
 export interface CubeReport {
   readonly decisions: number;
   readonly errorRate: number;
   readonly mistakes: Readonly<Partial<Record<CubeMistake, number>>>;
-  readonly advice: readonly string[];
 }
 
 export interface GameReview {
@@ -60,6 +64,11 @@ export interface GameReview {
 
 const WORST_MOMENTS = 3;
 const MAX_LEAKS = 3;
+/**
+ * Three things to work on is already more than anyone acts on in one game, and
+ * every line past the first competes with it.
+ */
+const MAX_FOCUS = 3;
 
 const ASSESSMENT: Readonly<Record<SkillTier, string>> = {
   expert:
@@ -164,26 +173,6 @@ export function reviewGame(
   const tier = tierFor(progressWithoutAdvice.checker);
   const levelledUp = tierRank(tier) > tierRank(tierFor(history.checker));
   const advisedHistory = history.advised ?? {};
-  const consumedAdvice = new Map<string, Set<number>>();
-  const adviceIndex = (key: string): number => advisedHistory[key] ?? 0;
-  const consumeAdvice = (key: string, variant: number) => {
-    const variants = consumedAdvice.get(key) ?? new Set<number>();
-    variants.add(variant);
-    consumedAdvice.set(key, variants);
-  };
-  const phaseAdviceFor = (phase: GamePhase, offset = 0): string => {
-    const key = `phase:${phase}`;
-    const index = adviceIndex(key) + offset;
-    consumeAdvice(key, index % PHASE_GUIDANCE[phase].length);
-    return phaseAdvice(phase, index);
-  };
-  const conceptAdviceFor = (concept: Concept, offset = 0): string => {
-    const key = `concept:${concept}`;
-    const index = adviceIndex(key) + offset;
-    consumeAdvice(key, index % CONCEPT_ADVICE[concept].length);
-    return conceptAdvice(concept, index);
-  };
-  const phasesInReview = new Set<GamePhase>();
 
   const byPhase: PhaseReport[] = Object.entries(delta.byPhase)
     .filter((entry): entry is [string, Tally] => entry[1] !== undefined)
@@ -191,12 +180,8 @@ export function reviewGame(
       phase: phase as GamePhase,
       decisions: tally.decisions,
       errorRate: errorRate(tally),
-      guidance: phaseAdviceFor(phase as GamePhase),
     }))
     .sort((a, b) => b.errorRate - a.errorRate);
-  for (const phase of byPhase) {
-    phasesInReview.add(phase.phase);
-  }
 
   const leaks: LeakReport[] = Object.entries(delta.byConcept)
     .filter((entry) => entry[1] !== undefined && entry[1].equityLoss > 0)
@@ -206,18 +191,16 @@ export function reviewGame(
       concept: concept as Concept,
       occurrences: tally?.missed ?? 0,
       equityLoss: tally?.equityLoss ?? 0,
-      advice: conceptAdviceFor(concept as Concept),
+      label: CONCEPT_LABEL[concept as Concept],
     }));
 
   const cubeAdvice = Object.keys(delta.cubeMistakes)
     .filter((mistake): mistake is CubeMistake => isCubeMistake(mistake as CubeMistake))
-    .map((mistake) => CUBE_ADVICE[mistake])
-    .filter((advice) => advice.length > 0);
-  for (const mistake of Object.keys(delta.cubeMistakes)) {
-    if (isCubeMistake(mistake as CubeMistake) && CUBE_ADVICE[mistake as CubeMistake].length > 0) {
-      consumeAdvice(`cube:${mistake}`, 0);
-    }
-  }
+    .map((mistake) => ({
+      key: `cube:${mistake}`,
+      advice: CUBE_ADVICE[mistake],
+    }))
+    .filter(({ advice }) => advice.length > 0);
 
   const worstMoments = [...turns]
     .filter((turn) => turn.severity !== 'fine')
@@ -230,33 +213,39 @@ export function reviewGame(
   const focusPhase = weakestPhase(progressWithoutAdvice);
   // Advice that has already been given once reads as a stuck record unless it
   // says that it is a repeat, which is itself the point: the leak survived.
-  const focusPhaseAdvice =
-    focusPhase === null
-      ? null
-      : phaseAdviceFor(focusPhase, phasesInReview.has(focusPhase) ? 1 : 0);
-  const focus = [
-    ...(focusPhase !== null && focusPhaseAdvice !== null
+  // Cube advice comes before the second leak: a mishandled cube costs whole
+  // points, and the list is cut short deliberately.
+  const focusCandidates: readonly { key: string; text: string }[] = [
+    ...(focusPhase
       ? [
-          focusPhase === weakestPhase(history)
-            ? `Still your costliest phase. ${focusPhaseAdvice}`
-            : focusPhaseAdvice,
+          {
+            key: `phase:${focusPhase}`,
+            text:
+              focusPhase === weakestPhase(history)
+                ? `Still your costliest phase. ${phaseAdvice(focusPhase, advisedHistory[`phase:${focusPhase}`] ?? 0)}`
+                : phaseAdvice(focusPhase, advisedHistory[`phase:${focusPhase}`] ?? 0),
+          },
         ]
       : []),
-    ...weakestConcepts(progressWithoutAdvice, 2).map((concept) => {
-      const repeated = leaks.some((leak) => leak.concept === concept);
-      const advice = conceptAdviceFor(concept, repeated ? 1 : 0);
-      return (history.byConcept[concept]?.missed ?? 0) > 0
-        ? `This keeps recurring. ${advice}`
-        : advice;
-    }),
-    ...cubeAdvice.slice(0, 1),
+    ...cubeAdvice.slice(0, 1).map(({ key, advice }) => ({ key, text: advice })),
+    ...weakestConcepts(progressWithoutAdvice, 2).map((concept) => ({
+      key: `concept:${concept}`,
+      text:
+        (history.byConcept[concept]?.missed ?? 0) > 0
+          ? `This keeps recurring. ${conceptAdvice(concept, advisedHistory[`concept:${concept}`] ?? 0)}`
+          : conceptAdvice(concept, advisedHistory[`concept:${concept}`] ?? 0),
+    })),
   ];
+  const focus = [
+    ...new Set(focusCandidates.map(({ text }) => text)),
+  ].slice(0, MAX_FOCUS);
+  const advisedThisReview = new Set(
+    focusCandidates.filter(({ text }) => focus.includes(text)).map(({ key }) => key),
+  );
 
   const progress = mergeProgress(history, {
     ...delta,
-    advised: Object.fromEntries(
-      [...consumedAdvice].map(([key, variants]) => [key, variants.size]),
-    ),
+    advised: Object.fromEntries([...advisedThisReview].map((key) => [key, 1])),
   });
 
   return {
@@ -271,7 +260,6 @@ export function reviewGame(
       decisions: delta.cube.decisions,
       errorRate: errorRate(delta.cube),
       mistakes: delta.cubeMistakes,
-      advice: cubeAdvice,
     },
     worstMoments,
     focus,
