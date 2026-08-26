@@ -11,6 +11,7 @@ const PRIORITY: readonly Concept[] = [
   'escapesBackChecker',
   'makesPoint',
   'bearsOff',
+  'bringsCheckersHome',
   'leavesBlotInOpponentHome',
   'leavesBlot',
   'breaksAnchor',
@@ -83,6 +84,9 @@ const WHY: Readonly<Record<Concept, PhaseReasons>> = {
   },
   stacksCheckers: {
     any: 'Stacked checkers make no points; it is spare builders that turn rolls into structure.',
+  },
+  bringsCheckersHome: {
+    any: 'With nothing left to get past, every checker still outside is a crossing you have yet to pay for.',
   },
 };
 

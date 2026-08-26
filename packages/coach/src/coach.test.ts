@@ -50,6 +50,22 @@ describe('concepts', () => {
     const after = makeBoard({ white: { 13: 4 } });
     expect(conceptsOf(before, after, 'white').has('breaksAnchor')).toBe(true);
   });
+
+  it('calls a tall point stacking while there is still a game to play', () => {
+    const before = makeBoard({ white: { 13: 4, 8: 2 }, black: { 20: 2, 5: 2 } });
+    const after = makeBoard({ white: { 13: 2, 8: 5 }, black: { 20: 2, 5: 2 } });
+    expect(conceptsOf(before, after, 'white').has('stacksCheckers')).toBe(true);
+  });
+
+  it('does not call a tall point stacking once the player is only bearing in', () => {
+    // Nothing of black's stands in front of white's checkers, so white is
+    // bringing them home; a six-high point is what that is meant to look like.
+    const before = makeBoard({ white: { 7: 2, 6: 5, 4: 2, 3: 4, 2: 2 }, black: { 20: 8, 1: 1 } });
+    const after = makeBoard({ white: { 6: 6, 4: 2, 3: 4, 2: 3 }, black: { 20: 8, 1: 1 } });
+    const concepts = conceptsOf(before, after, 'white');
+    expect(concepts.has('stacksCheckers')).toBe(false);
+    expect(concepts.has('bringsCheckersHome')).toBe(true);
+  });
 });
 
 describe('explanations', () => {

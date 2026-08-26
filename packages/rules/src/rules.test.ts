@@ -6,6 +6,7 @@ import {
   boardKey,
   checkersAt,
   initialBoard,
+  isBearingIn,
   isRace,
   pipCount,
 } from './board.js';
@@ -44,6 +45,21 @@ describe('board', () => {
     expect(isRace(makeBoard({ white: { 5: 2 }, black: { 20: 2 } }))).toBe(true);
     expect(isRace(makeBoard({ white: { 20: 1 }, black: { 5: 1 } }))).toBe(false);
     expect(isRace(makeBoard({ white: { 5: 2 }, black: { 20: 2 }, bar: { white: 1 } }))).toBe(false);
+  });
+
+  it('reads a player as bearing in once nothing of the opponent blocks their way', () => {
+    expect(isBearingIn(initialBoard(), 'white')).toBe(false);
+
+    // A lone opponent checker deep in white's board cannot block anything, so
+    // white has nothing left to get past even though contact remains.
+    const straggler = makeBoard({ white: { 7: 2, 6: 5, 3: 4, 2: 2 }, black: { 20: 6, 1: 1 } });
+    expect(isBearingIn(straggler, 'white')).toBe(true);
+    expect(isBearingIn(straggler, 'black')).toBe(false);
+
+    // An opponent point in front of white's rearmost checker still blocks it.
+    expect(isBearingIn(makeBoard({ white: { 7: 2, 3: 2 }, black: { 5: 2 } }), 'white')).toBe(false);
+    expect(isBearingIn(makeBoard({ white: { 3: 2 }, black: { 5: 2 } }), 'white')).toBe(true);
+    expect(isBearingIn(makeBoard({ white: { 3: 2 }, black: { 5: 2 }, bar: { white: 1 } }), 'white')).toBe(false);
   });
 });
 
