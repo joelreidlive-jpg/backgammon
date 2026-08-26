@@ -120,7 +120,7 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
   {
     term: 'equity',
     definition:
-      'What a position is worth on average, in points, if it were played out to the end. The engine compares plays by their equity, and the difference is what it calls a mistake.',
+      'What a position is worth on average, in points, if it were played out to the end. The coach compares plays by their equity, and the difference is what it calls a mistake.',
   },
   {
     term: 'gammon',

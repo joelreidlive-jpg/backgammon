@@ -114,7 +114,7 @@ export function RequireAccount({ children }: { children: ReactNode }) {
     <div className="setup gate">
       <div className="blurb">
         <h1>Backgammon</h1>
-        <p className="muted">Play the engine, with a coach watching over your shoulder.</p>
+        <p className="muted">Play a computer opponent, with a coach watching over your shoulder.</p>
         <p className="muted">
           Sign in to play: your games, your grade and the trainer's record of what you keep getting
           wrong belong to your account, so they follow you to any device.

@@ -100,7 +100,7 @@ function describe(mistake: CubeMistake, p: number): string {
     case 'too-good-to-double':
       return `You are ${standing} — too good to double: your opponent simply drops and you collect one point, when playing on wins a gammon often enough to be worth more.`;
     case 'undecided':
-      return `You are ${standing}, so your opponent drops any double: cashing collects one point while playing on plays for a gammon. Which is right turns on how often this position gammons, which the engine cannot yet estimate, so neither choice is marked wrong.`;
+      return `You are ${standing}, so your opponent drops any double: cashing collects one point while playing on plays for a gammon. Which is right turns on how often this position gammons, which the coach cannot yet estimate, so neither choice is marked wrong.`;
     case 'wrong-take':
       return `You are ${standing}, below the point where a take pays. Dropping costs one point; taking costs more than that on average.`;
     case 'wrong-drop':

@@ -47,7 +47,7 @@ export function NewMatchForm({ busy, error, progress, onStart, onTrain, resume }
         <h1>Backgammon</h1>
         <AccountButton />
       </div>
-      <p className="muted">Play the engine, with a coach watching over your shoulder.</p>
+      <p className="muted">Play a computer opponent, with a coach watching over your shoulder.</p>
 
       {resume && (
         <div className="resume">
