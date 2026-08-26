@@ -1,5 +1,6 @@
 import type { Move } from '@bg/rules';
 import type {
+  AuthResponse,
   CreateMatchRequest,
   CreateMatchResponse,
   CubeAnswer,
@@ -34,6 +35,16 @@ export function loadPlayerToken(): string | null {
 
 export function savePlayerToken(token: string): void {
   localStorage.setItem(TOKEN_KEY, token);
+}
+
+/**
+ * Forget who is playing. Signing out has to drop the stored match too: it
+ * belongs to the account that has just left, and the next player on this
+ * browser must not be handed it.
+ */
+export function clearPlayer(): void {
+  localStorage.removeItem(TOKEN_KEY);
+  clearSession();
 }
 
 export function loadSession(): Session | null {
@@ -95,6 +106,25 @@ async function request<T>(path: string, init: RequestInit & { token?: string } =
  * WebSocket layer arrives for human-vs-human, only this module changes.
  */
 export const api = {
+  /** Sends the anonymous token, if any, so the new account adopts its progress. */
+  signUp: (email: string, password: string) =>
+    request<AuthResponse>('/api/auth/signup', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+      token: loadPlayerToken() ?? undefined,
+    }),
+
+  signIn: (email: string, password: string) =>
+    request<AuthResponse>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }),
+
+  signOut: (playerToken: string) =>
+    request<null>('/api/auth/logout', { method: 'POST', token: playerToken }),
+
+  whoAmI: (playerToken: string) => request<AuthResponse>('/api/auth/me', { token: playerToken }),
+
   createMatch: (body: CreateMatchRequest) =>
     request<CreateMatchResponse>('/api/matches', {
       method: 'POST',

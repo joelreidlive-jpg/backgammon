@@ -12,6 +12,7 @@ declare global {
     MATCH_CREATE_LIMIT?: RateLimiter;
     MATCH_LIMIT?: RateLimiter;
     TRAINER_LIMIT?: RateLimiter;
+    AUTH_LIMIT?: RateLimiter;
   }
 }
 

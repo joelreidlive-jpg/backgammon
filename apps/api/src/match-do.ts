@@ -45,8 +45,12 @@ interface MatchMeta {
   readonly seat: Player;
   readonly aiLevel: Difficulty;
   readonly coaching: boolean;
-  /** Identifies the player across matches, so progress accumulates. */
-  readonly playerToken: string;
+  /**
+   * Identifies the player across matches, so progress accumulates, and is what
+   * authorises every call on this match. It is the key, never the credential:
+   * an account's sessions come and go, and the same player must keep their
+   * seat across them.
+   */
   readonly playerKey: string;
   readonly createdAt: number;
 }
@@ -168,8 +172,8 @@ export class MatchDO extends DurableObject<Env> {
   async create(
     matchId: string,
     request: CreateMatchRequest,
-    player: { token: string; key: string },
-  ): Promise<{ playerToken: string; view: MatchView }> {
+    player: { key: string },
+  ): Promise<{ view: MatchView }> {
     if (await this.ctx.storage.get<MatchMeta>('meta')) {
       throw new MatchError('match already exists', 409);
     }
@@ -180,7 +184,6 @@ export class MatchDO extends DurableObject<Env> {
       seat: options.seat,
       aiLevel: options.aiLevel,
       coaching: options.coaching,
-      playerToken: player.token,
       playerKey: player.key,
       createdAt: Date.now(),
     };
@@ -197,16 +200,16 @@ export class MatchDO extends DurableObject<Env> {
     state = this.advanceAI(state, meta);
     await this.putState(state);
 
-    return { playerToken: meta.playerToken, view: await this.view(state, meta) };
+    return { view: await this.view(state, meta) };
   }
 
-  async get(token: string): Promise<MatchView> {
-    const meta = await this.requireMeta(token);
+  async get(key: string): Promise<MatchView> {
+    const meta = await this.requireMeta(key);
     const state = await this.requireState();
     // A reply the client never asked for — it was closed during the pause the
     // coach is given — would leave the match with nobody able to move, so
     // loading it plays the reply that was owed.
-    if (state.turn !== meta.seat) return this.opponentReply(token);
+    if (state.turn !== meta.seat) return this.opponentReply(key);
     return this.view(state, meta);
   }
 
@@ -217,8 +220,8 @@ export class MatchDO extends DurableObject<Env> {
    * client asks for the reply once the player has had their moment to consult
    * the coach.
    */
-  async opponentReply(token: string): Promise<MatchView> {
-    const meta = await this.requireMeta(token);
+  async opponentReply(key: string): Promise<MatchView> {
+    const meta = await this.requireMeta(key);
     let state = await this.requireState();
     if (state.turn === meta.seat) return this.view(state, meta);
 
@@ -228,8 +231,8 @@ export class MatchDO extends DurableObject<Env> {
     return this.view(state, meta, { review });
   }
 
-  async roll(token: string): Promise<MatchView> {
-    const meta = await this.requireMeta(token);
+  async roll(key: string): Promise<MatchView> {
+    const meta = await this.requireMeta(key);
     let state = await this.requireState();
     this.requireHumanTurn(state, meta);
     if (state.phase !== 'roll') throw new MatchError(`cannot roll during "${state.phase}"`, 409);
@@ -249,8 +252,8 @@ export class MatchDO extends DurableObject<Env> {
     return this.view(state, meta, { cubeAnalysis: declined });
   }
 
-  async submitTurn(token: string, moves: readonly Move[]): Promise<MatchView> {
-    const meta = await this.requireMeta(token);
+  async submitTurn(key: string, moves: readonly Move[]): Promise<MatchView> {
+    const meta = await this.requireMeta(key);
     const before = await this.requireState();
     this.requireHumanTurn(before, meta);
     if (before.phase !== 'move' || before.dice === null) {
@@ -274,8 +277,8 @@ export class MatchDO extends DurableObject<Env> {
     return this.view(state, meta, { analysis, review });
   }
 
-  async cube(token: string, command: CubeCommand): Promise<MatchView> {
-    const meta = await this.requireMeta(token);
+  async cube(key: string, command: CubeCommand): Promise<MatchView> {
+    const meta = await this.requireMeta(key);
     let state = await this.requireState();
 
     let cubeAnalysis: CubeAnalysis | null = null;
@@ -302,8 +305,8 @@ export class MatchDO extends DurableObject<Env> {
     return this.view(state, meta, { cubeAnalysis, review });
   }
 
-  async nextGame(token: string): Promise<MatchView> {
-    const meta = await this.requireMeta(token);
+  async nextGame(key: string): Promise<MatchView> {
+    const meta = await this.requireMeta(key);
     let state = await this.requireState();
     if (state.phase !== 'game-over') throw new MatchError('the game is not over', 409);
 
@@ -315,13 +318,13 @@ export class MatchDO extends DurableObject<Env> {
   }
 
   /** The review of the most recently finished game, if there is one. */
-  async review(token: string): Promise<GameReview | null> {
-    await this.requireMeta(token);
+  async review(key: string): Promise<GameReview | null> {
+    await this.requireMeta(key);
     return (await this.ctx.storage.get<GameReview>('review')) ?? null;
   }
 
-  async hint(token: string, level: HintLevel): Promise<unknown> {
-    const meta = await this.requireMeta(token);
+  async hint(key: string, level: HintLevel): Promise<unknown> {
+    const meta = await this.requireMeta(key);
     // Hints are a cheating vector, so availability is decided here rather than
     // in the client. When a second human is seated this must stay refused.
     if (!meta.coaching) throw new MatchError('coaching is disabled for this match', 403);
@@ -335,8 +338,8 @@ export class MatchDO extends DurableObject<Env> {
   }
 
   /** Undo the human's last turn of the current game, and the AI reply it triggered. */
-  async takeback(token: string): Promise<MatchView> {
-    const meta = await this.requireMeta(token);
+  async takeback(key: string): Promise<MatchView> {
+    const meta = await this.requireMeta(key);
     if (!meta.coaching) throw new MatchError('coaching is disabled for this match', 403);
 
     const seq = await this.lastHumanTurn(meta);
@@ -353,8 +356,8 @@ export class MatchDO extends DurableObject<Env> {
    * client: the analysis the browser holds is only a rendering of this, and a
    * submitted "best play" would otherwise be an unchecked move sequence.
    */
-  async playBest(token: string): Promise<MatchView> {
-    const meta = await this.requireMeta(token);
+  async playBest(key: string): Promise<MatchView> {
+    const meta = await this.requireMeta(key);
     if (!meta.coaching) throw new MatchError('coaching is disabled for this match', 403);
 
     // Everything that can fail is done before the turn is unwound, so a
@@ -428,8 +431,8 @@ export class MatchDO extends DurableObject<Env> {
     return JSON.parse(row.state_before) as MatchState;
   }
 
-  async history(token: string): Promise<HistoryEntry[]> {
-    await this.requireMeta(token);
+  async history(key: string): Promise<HistoryEntry[]> {
+    await this.requireMeta(key);
     return this.sql
       .exec<MoveRow>('SELECT * FROM moves ORDER BY seq ASC')
       .toArray()
@@ -639,10 +642,10 @@ export class MatchDO extends DurableObject<Env> {
     return coachingPolicy(progress, phaseOf(state.board, meta.seat));
   }
 
-  private async requireMeta(token: string): Promise<MatchMeta> {
+  private async requireMeta(key: string): Promise<MatchMeta> {
     const meta = await this.ctx.storage.get<MatchMeta>('meta');
     if (!meta) throw new MatchError('match not found', 404);
-    if (meta.playerToken !== token) throw new MatchError('not your match', 403);
+    if (meta.playerKey !== key) throw new MatchError('not your match', 403);
     return meta;
   }
 

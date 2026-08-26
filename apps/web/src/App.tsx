@@ -39,6 +39,7 @@ import {
 } from './api.js';
 import { describeResume, shouldPromptResume } from './resume.js';
 import { FullscreenButton } from './FullscreenButton.js';
+import { AccountButton } from './Account.js';
 import { GlossaryButton } from './Glossary.js';
 
 /** Long enough to read as a throw, short enough not to slow the game down. */
@@ -410,6 +411,7 @@ export function App() {
           </button>
           <ThemePicker theme={boardTheme} onChange={setBoardTheme} />
           <GlossaryButton />
+          <AccountButton />
           <FullscreenButton />
         </div>
       </header>

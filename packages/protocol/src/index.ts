@@ -110,6 +110,22 @@ export interface MatchView {
   readonly review: GameReview | null;
 }
 
+export interface CredentialsRequest {
+  readonly email: string;
+  readonly password: string;
+}
+
+/**
+ * Who the browser is now. `playerToken` is a session token once signed in, and
+ * is used exactly as an anonymous token is, so nothing else about the client
+ * changes when an account is involved.
+ */
+export interface AuthResponse {
+  readonly playerToken: string;
+  /** Null when the caller is playing anonymously. */
+  readonly email: string | null;
+}
+
 export interface CreateMatchResponse {
   readonly playerToken: string;
   readonly match: MatchView;
