@@ -41,9 +41,6 @@ export function ReviewPanel({ review }: { review: GameReview }) {
         <Glossed>{review.headline}</Glossed>
       </p>
       <p className="muted">
-        <Glossed>{review.standing}</Glossed>
-      </p>
-      <p className="muted">
         {review.decisions} decision{review.decisions === 1 ? '' : 's'} · {millipoints(review.errorRate)}{' '}
         millipoints lost per decision
       </p>
@@ -126,16 +123,21 @@ export function ReviewPanel({ review }: { review: GameReview }) {
       {/* Drawn from the standing record rather than this game, so it repeats
           between games by design — folded away so it cannot crowd out what
           just happened. */}
-      {review.focus.length > 0 && (
+      {(review.standing.length > 0 || review.focus.length > 0) && (
         <details className="tray">
           <summary>Work on this next, across your games</summary>
-          <ul className="focus">
-            {review.focus.map((line) => (
-              <li key={line}>
-                <Glossed>{line}</Glossed>
-              </li>
-            ))}
-          </ul>
+          <p className="muted">
+            <Glossed>{review.standing}</Glossed>
+          </p>
+          {review.focus.length > 0 && (
+            <ul className="focus">
+              {review.focus.map((line) => (
+                <li key={line}>
+                  <Glossed>{line}</Glossed>
+                </li>
+              ))}
+            </ul>
+          )}
         </details>
       )}
     </section>
