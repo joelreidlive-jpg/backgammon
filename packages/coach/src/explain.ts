@@ -64,8 +64,8 @@ const WHY: Readonly<Record<Concept, PhaseReasons>> = {
   },
   leavesBlotInOpponentHome: {
     opening:
-      'Their home board is barely built yet, but a hit that deep still costs you the whole race in one roll.',
-    any: 'A hit that deep costs you the most pips and makes you re-enter against their strongest board.',
+      'A hit that deep costs almost no pips, but it puts you on the bar in the very rolls you need for building points.',
+    any: 'A hit that deep costs few pips and a lot of time: the checker restarts behind their strongest board, and every turn you dance there is a turn lost.',
   },
   leavesBlot: {
     opening:
