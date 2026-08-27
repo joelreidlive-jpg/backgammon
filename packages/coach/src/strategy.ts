@@ -37,7 +37,7 @@ export const CONCEPT_ADVICE: Readonly<Record<Concept, string>> = {
   leavesBlot:
     'You leave more blots than you need to. Before playing, count how many numbers hit you — if the play gains little, take the safe one.',
   leavesBlotInOpponentHome:
-    'You leave blots deep in your opponent\u2019s home board, where a hit costs you the most and is hardest to recover from.',
+    'You leave blots deep in your opponent\u2019s home board. A hit there costs barely any pips, but it strands the checker behind their best board, where it can sit on the bar for rolls at a time.',
   breaksAnchor:
     'You give up anchors too readily. An anchor is your insurance; break it only when you have a concrete plan that does not need it.',
   breaksHomeBoardPoint:
