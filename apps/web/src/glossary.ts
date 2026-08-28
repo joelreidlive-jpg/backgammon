@@ -178,7 +178,7 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
     term: 'point',
     aliases: ['points', 'made point', 'made points'],
     definition:
-      'One of the twenty-four triangles. To "make" a point is to hold it with two or more checkers, which stops your opponent landing there.',
+      'One of the twenty-four triangles. To "make" a point is to hold it with two or more checkers, which stops your opponent landing there. The word also means a unit of score: a plain game is worth one point, and the cube multiplies it.',
   },
   {
     term: 'prime',

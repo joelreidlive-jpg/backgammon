@@ -106,7 +106,7 @@ function describe(mistake: CubeMistake, p: number): string {
     case 'wrong-take':
       return `You are ${standing} — under the one game in four a take has to win to pay for itself. Dropping costs one point; taking costs more than that on average.`;
     case 'wrong-drop':
-      return `You are ${standing}, but a take only has to win about one game in four to be worth it, and you are above that line. Passing throws away a point you were entitled to play for.`;
+      return `You are ${standing}, but a take only has to win about one game in four to be worth it, and you are above that line. Dropping concedes one point for certain, while taking loses two only sometimes and wins two often enough to cost you less in the long run.`;
     case 'none':
       return 'Correct cube decision.';
   }
